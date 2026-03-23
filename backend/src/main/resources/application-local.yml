@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/blackbox_db
+    username: blackbox
+    password: blackbox1234
+
+  flyway:
+    enabled: true
+
+logging:
+  level:
+    com.blackbox: DEBUG
+    org.springframework.security: DEBUG
