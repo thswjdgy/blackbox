@@ -1,0 +1,26 @@
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Changes not staged for commit:
+  (use "git add/rm <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+  (commit or discard the untracked or modified content in submodules)
+	modified:   backend/build.gradle
+	deleted:    backend/src/main/java/com/blackbox/demo/DemoApplication.java
+	modified:   frontend (modified content, untracked content)
+	deleted:    md/claude (2).md
+	deleted:    md/todo (1).md
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	backend/src/main/java/com/blackbox/BlackboxApplication.java
+	backend/src/main/java/com/blackbox/domain/
+	backend/src/main/java/com/blackbox/global/
+	backend/src/main/resources/db/migration/V8__init_refresh_tokens.sql
+	md/claude.md
+	md/todo.md
+	nul
+	tmp-diff.txt
+	tmp-status.txt
+
+no changes added to commit (use "git add" and/or "git commit -a")

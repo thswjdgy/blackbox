@@ -1,0 +1,5 @@
+backend/build.gradle
+backend/src/main/java/com/blackbox/demo/DemoApplication.java
+frontend
+md/claude (2).md
+md/todo (1).md
