@@ -106,7 +106,18 @@ function MeetingDetailContent() {
 
   const handleCreateActionItem = async (title: string, description: string) => {
     await api.post(`/projects/${projectId}/meetings/${meetingId}/action-items`, { title, description });
-    await fetchMeeting(); // Refresh tasks
+    await fetchMeeting();
+  };
+
+  const handleDeleteTask = async (taskId: number) => {
+    if (!confirm('액션 아이템을 삭제할까요?')) return;
+    try {
+      await api.delete(`/projects/${projectId}/tasks/${taskId}`);
+      setTasks(prev => prev.filter(t => t.id !== taskId));
+    } catch (e) {
+      console.error(e);
+      alert('삭제 실패');
+    }
   };
 
   const handleCopyCode = async () => {
@@ -287,7 +298,7 @@ function MeetingDetailContent() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {tasks.map(task => (
-              <div key={task.id} className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-4 flex items-start gap-4">
+              <div key={task.id} className="group bg-slate-800/40 border border-slate-700/50 rounded-xl p-4 flex items-start gap-4">
                 <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${
                   task.status === 'DONE' ? 'bg-emerald-500' :
                   task.status === 'IN_PROGRESS' ? 'bg-amber-500' : 'bg-slate-500'
@@ -296,8 +307,17 @@ function MeetingDetailContent() {
                   <p className="text-sm font-bold text-slate-200 truncate">{task.title}</p>
                   <p className="text-xs text-slate-500 mt-1 line-clamp-1">{task.description || '설명 없음'}</p>
                 </div>
-                <div className="text-[10px] bg-slate-900 text-slate-400 px-2 py-1 rounded uppercase font-bold">
-                  {task.status}
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="text-[10px] bg-slate-900 text-slate-400 px-2 py-1 rounded uppercase font-bold">
+                    {task.status}
+                  </div>
+                  <button
+                    onClick={() => handleDeleteTask(task.id)}
+                    className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-md flex items-center justify-center text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                    title="삭제"
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
             ))}

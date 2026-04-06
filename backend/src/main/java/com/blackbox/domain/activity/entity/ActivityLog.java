@@ -63,6 +63,16 @@ public class ActivityLog {
         MEETING_CHECKIN,
         MEMBER_JOINED,
         FILE_UPLOADED,
-        FILE_TAMPERED
+        FILE_TAMPERED,
+        // GitHub 연동
+        GITHUB_PUSH,
+        GITHUB_PR_OPENED,
+        GITHUB_PR_MERGED,
+        GITHUB_ISSUE_OPENED,
+        GITHUB_ISSUE_CLOSED,
+        // Notion 연동
+        NOTION_PAGE_CREATED,
+        NOTION_PAGE_EDITED,
+        NOTION_COMMENT_ADDED
     }
 }

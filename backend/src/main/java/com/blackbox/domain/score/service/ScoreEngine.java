@@ -32,14 +32,24 @@ public class ScoreEngine {
     private static final double W_EXTRA   = 0.15; // 액션 아이템, 기타 활동
 
     // 이벤트별 포인트
-    private static final Map<EventType, Double> EVENT_POINTS = Map.of(
-            EventType.TASK_CREATED,        3.0,
-            EventType.TASK_UPDATED,        1.0,
-            EventType.TASK_STATUS_CHANGED, 4.0,
-            EventType.MEETING_CREATED,     5.0,
-            EventType.MEETING_CHECKIN,     8.0,
-            EventType.FILE_UPLOADED,       6.0,
-            EventType.FILE_TAMPERED,       0.0
+    private static final Map<EventType, Double> EVENT_POINTS = Map.ofEntries(
+            Map.entry(EventType.TASK_CREATED,        3.0),
+            Map.entry(EventType.TASK_UPDATED,        1.0),
+            Map.entry(EventType.TASK_STATUS_CHANGED, 4.0),
+            Map.entry(EventType.MEETING_CREATED,     5.0),
+            Map.entry(EventType.MEETING_CHECKIN,     8.0),
+            Map.entry(EventType.FILE_UPLOADED,       6.0),
+            Map.entry(EventType.FILE_TAMPERED,       0.0),
+            // GitHub 활동 포인트
+            Map.entry(EventType.GITHUB_PUSH,         3.0),
+            Map.entry(EventType.GITHUB_PR_OPENED,    4.0),
+            Map.entry(EventType.GITHUB_PR_MERGED,    6.0),
+            Map.entry(EventType.GITHUB_ISSUE_OPENED, 2.0),
+            Map.entry(EventType.GITHUB_ISSUE_CLOSED, 3.0),
+            // Notion 활동 포인트
+            Map.entry(EventType.NOTION_PAGE_CREATED, 4.0),
+            Map.entry(EventType.NOTION_PAGE_EDITED,  2.0),
+            Map.entry(EventType.NOTION_COMMENT_ADDED,1.0)
     );
 
     private static final double NORMALIZED_CAP = 150.0;
@@ -73,7 +83,12 @@ public class ScoreEngine {
             double taskRaw    = score(counts, EventType.TASK_CREATED, EventType.TASK_UPDATED, EventType.TASK_STATUS_CHANGED);
             double meetingRaw = score(counts, EventType.MEETING_CREATED, EventType.MEETING_CHECKIN);
             double fileRaw    = score(counts, EventType.FILE_UPLOADED);
-            double extraRaw   = 0; // 향후 확장
+            double extraRaw   = score(counts,
+                                      EventType.GITHUB_PUSH, EventType.GITHUB_PR_OPENED,
+                                      EventType.GITHUB_PR_MERGED, EventType.GITHUB_ISSUE_OPENED,
+                                      EventType.GITHUB_ISSUE_CLOSED,
+                                      EventType.NOTION_PAGE_CREATED, EventType.NOTION_PAGE_EDITED,
+                                      EventType.NOTION_COMMENT_ADDED);
 
             rawScores.put(userId, new double[]{taskRaw, meetingRaw, fileRaw, extraRaw});
         }
