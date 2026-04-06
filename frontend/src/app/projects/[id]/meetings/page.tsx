@@ -61,7 +61,7 @@ export default function MeetingsPage() {
   if (loading) return <div className="p-8 text-slate-400">불러오는 중...</div>;
 
   return (
-    <div className="flex flex-col h-full overflow-hidden p-6 absolute inset-0">
+    <div className="flex flex-col h-full overflow-y-auto custom-scrollbar p-6">
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between backdrop-blur-md bg-slate-900/40 p-5 rounded-2xl mb-6 border border-slate-800 shadow-xl">
         <div>

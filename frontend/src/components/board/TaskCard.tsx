@@ -15,9 +15,10 @@ export interface TaskType {
 interface Props {
   task: TaskType;
   onClick: () => void;
+  onDelete: (taskId: number) => void;
 }
 
-export function TaskCard({ task, onClick }: Props) {
+export function TaskCard({ task, onClick, onDelete }: Props) {
   const {
     attributes,
     listeners,
@@ -52,15 +53,25 @@ export function TaskCard({ task, onClick }: Props) {
         <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${priorityColors[task.priority]}`}>
           {task.priority}
         </span>
-        {task.assigneeIds.length > 0 && (
-          <div className="flex -space-x-2">
-            {task.assigneeIds.map(id => (
-              <div key={id} className="w-6 h-6 rounded-full bg-indigo-500 border border-slate-800 flex items-center justify-center text-[10px] font-bold text-white shadow-sm" title={`User ${id}`}>
-                U{id}
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="flex items-center gap-1">
+          {task.assigneeIds.length > 0 && (
+            <div className="flex -space-x-2">
+              {task.assigneeIds.map(id => (
+                <div key={id} className="w-6 h-6 rounded-full bg-indigo-500 border border-slate-800 flex items-center justify-center text-[10px] font-bold text-white shadow-sm" title={`User ${id}`}>
+                  U{id}
+                </div>
+              ))}
+            </div>
+          )}
+          {/* 삭제 버튼 — 호버 시 표시 */}
+          <button
+            onClick={e => { e.stopPropagation(); onDelete(task.id); }}
+            className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-md flex items-center justify-center text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+            title="삭제"
+          >
+            ✕
+          </button>
+        </div>
       </div>
       <h4 className="text-sm font-semibold text-slate-100 mb-1 leading-snug">{task.title}</h4>
       {task.description && (

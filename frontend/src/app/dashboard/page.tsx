@@ -167,7 +167,10 @@ export default function DashboardPage() {
       {showJoinModal && (
         <JoinProjectModal
           onClose={() => setShowJoinModal(false)}
-          onJoined={() => { setShowJoinModal(false); fetchProjects(); }}
+          onJoined={(projectId) => { 
+            setShowJoinModal(false); 
+            router.push(`/projects/${projectId}`);
+          }}
         />
       )}
 
@@ -223,7 +226,7 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
 }
 
 /* ── Join Project Modal ──────────────────────────────────── */
-function JoinProjectModal({ onClose, onJoined }: { onClose: () => void; onJoined: () => void }) {
+function JoinProjectModal({ onClose, onJoined }: { onClose: () => void; onJoined: (projectId: number) => void }) {
   const [inviteCode, setInviteCode] = useState('');
   const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -233,8 +236,8 @@ function JoinProjectModal({ onClose, onJoined }: { onClose: () => void; onJoined
     e.preventDefault();
     setLoading(true);
     try {
-      await api.post('/projects/join', { inviteCode, dataCollectionConsent: consent });
-      onJoined();
+      const res = await api.post('/projects/join', { inviteCode, dataCollectionConsent: consent });
+      onJoined(res.data.id);
     } catch (err: any) {
       setError(err.response?.data?.message ?? '오류가 발생했습니다.');
     } finally {

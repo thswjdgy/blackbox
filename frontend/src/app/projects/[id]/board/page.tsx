@@ -148,6 +148,17 @@ export default function KanbanBoardPage() {
     }
   };
 
+  const handleDeleteTask = async (taskId: number) => {
+    if (!confirm('태스크를 삭제할까요?')) return;
+    try {
+      await api.delete(`/projects/${projectId}/tasks/${taskId}`);
+      setTasks(prev => prev.filter(t => t.id !== taskId));
+    } catch (e) {
+      console.error(e);
+      alert('삭제 실패');
+    }
+  };
+
   const handleSaveTask = async (taskData: Partial<TaskType>) => {
     try {
       if (selectedTask) {
@@ -175,7 +186,7 @@ export default function KanbanBoardPage() {
   if (loading) return <div className="p-8 text-white">Loading Kanban Board...</div>;
 
   return (
-    <div className="flex flex-col h-full overflow-hidden p-6 absolute inset-0">
+    <div className="flex flex-col h-full overflow-hidden p-6">
       <div className="flex shrink-0 flex-col gap-3 backdrop-blur-md bg-slate-900/40 p-5 rounded-2xl mb-6 border border-slate-800 shadow-xl">
         <div className="flex items-center justify-between">
           <div>
@@ -262,10 +273,11 @@ export default function KanbanBoardPage() {
                 >
                   <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar px-1 pb-4">
                     {colTasks.map(task => (
-                      <TaskCard 
-                        key={task.id} 
-                        task={task} 
-                        onClick={() => { setSelectedTask(task); setIsModalOpen(true); }} 
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        onClick={() => { setSelectedTask(task); setIsModalOpen(true); }}
+                        onDelete={handleDeleteTask}
                       />
                     ))}
                     {colTasks.length === 0 && (

@@ -134,7 +134,7 @@ function MeetingDetailContent() {
   const isDirty = notes !== (meeting.notes ?? '') || decisions !== (meeting.decisions ?? '');
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto custom-scrollbar p-6 absolute inset-0">
+    <div className="flex flex-col h-full overflow-y-auto custom-scrollbar p-6">
       {/* Back + Delete */}
       <div className="flex items-center justify-between mb-6">
         <button

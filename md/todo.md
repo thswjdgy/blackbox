@@ -22,9 +22,8 @@
 - [x] Next.js 프로젝트 생성 (App Router, TypeScript)
 - [x] GitHub 리포지토리 생성 & 브랜치 전략 확정
 - [x] CI/CD 기본 설정 (GitHub Actions — Docker 빌드 확인)
-
-### 🔴 P0 — DB 스키마 v1 배포 (Flyway)
-- [x] Flyway 의존성 추가 & 설정
+- [x] 프로젝트 메인 대시보드 (/projects/[id]) 구현
+- [x] 초대 코드 참여 및 자동 이동 로직 연동
 - [x] `V1__init_users.sql` — users 테이블
 - [x] `V2__init_projects.sql` — projects, project_members 테이블
 - [x] `V3__init_tasks.sql` — tasks, task_assignees 테이블
@@ -167,6 +166,16 @@
   5. 파일 업로드 → 해시 고정 시연
   6. 교수 대시보드에서 기여도 확인
   7. (보너스) 해시 변조 감지 데모
+
+### 🟡 P1 — UI/UX 개선 & 버그픽스 (MVP 이후 추가)
+- [x] 사이드바 접기/펼치기 버튼 → 햄버거(☰) 아이콘으로 교체, 최상단 배치
+- [x] 사이드바 "ID: {숫자}" → 로그인 유저 이름 + 이메일 표시
+- [x] 사이드바 탭명 한글화 (Dashboard→대시보드, Meetings→회의록 등)
+- [x] 사이드바 이중 활성화 버그 수정 (홈 + 태스크보드 동시 하이라이트)
+- [x] 섹션 간 좌우 네비게이션 바 추가 (Alt+← / Alt+→ 단축키)
+- [x] 회의 상세 페이지 `absolute inset-0` 레이아웃 버그 수정 (사이드바 침범)
+- [x] 태스크 카드 삭제 버튼 추가 (호버 시 ✕ 표시)
+- [x] "홈 (개요)" → "홈" 탭명 변경
 
 ---
 
