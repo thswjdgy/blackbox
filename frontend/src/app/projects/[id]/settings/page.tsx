@@ -37,13 +37,29 @@ interface NotionMapping {
   notionUserName: string;
 }
 
+interface GoogleInstallation {
+  projectId: number;
+  connected: boolean;
+  driveFolderId: string | null;
+  sheetId: string | null;
+  formId: string | null;
+  connectedAt: string | null;
+}
+
+interface GoogleMapping {
+  id: number;
+  userId: number;
+  userName: string;
+  googleEmail: string;
+}
+
 interface Member {
   userId: number;
   userName: string;
 }
 
 /* ── 섹션 탭 ── */
-type Tab = 'github' | 'notion';
+type Tab = 'github' | 'notion' | 'google';
 
 export default function SettingsPage() {
   const params    = useParams();
@@ -63,6 +79,18 @@ export default function SettingsPage() {
   const [ghSaving,     setGhSaving]     = useState(false);
   const [ghPolling,    setGhPolling]    = useState(false);
   const [ghPollMsg,    setGhPollMsg]    = useState<string | null>(null);
+
+  /* Google state */
+  const [gInst,        setGInst]        = useState<GoogleInstallation | null>(null);
+  const [gMappings,    setGMappings]    = useState<GoogleMapping[]>([]);
+  const [gDriveFolder, setGDriveFolder] = useState('');
+  const [gSheetId,     setGSheetId]     = useState('');
+  const [gFormId,      setGFormId]      = useState('');
+  const [gMapUser,     setGMapUser]     = useState('');
+  const [gMapEmail,    setGMapEmail]    = useState('');
+  const [gSaving,      setGSaving]      = useState(false);
+  const [gPolling,     setGPolling]     = useState(false);
+  const [gPollMsg,     setGPollMsg]     = useState<string | null>(null);
 
   /* Notion state */
   const [ntInst,       setNtInst]       = useState<NotionInstallation | null>(null);
@@ -84,11 +112,13 @@ export default function SettingsPage() {
   async function fetchAll() {
     setLoading(true);
     try {
-      const [ghRes, ghMapRes, ntRes, ntMapRes, memRes] = await Promise.allSettled([
+      const [ghRes, ghMapRes, ntRes, ntMapRes, gRes, gMapRes, memRes] = await Promise.allSettled([
         api.get(`/projects/${projectId}/github`),
         api.get(`/projects/${projectId}/github/mappings`),
         api.get(`/projects/${projectId}/notion`),
         api.get(`/projects/${projectId}/notion/mappings`),
+        api.get(`/projects/${projectId}/google`),
+        api.get(`/projects/${projectId}/google/mappings`),
         api.get(`/projects/${projectId}/members`),
       ]);
 
@@ -104,6 +134,14 @@ export default function SettingsPage() {
         setNtWsName(n.workspaceName ?? '');
       }
       if (ntMapRes.status === 'fulfilled') setNtMappings(ntMapRes.value.data);
+      if (gRes.status === 'fulfilled' && gRes.value.data?.connected) {
+        const g = gRes.value.data as GoogleInstallation;
+        setGInst(g);
+        setGDriveFolder(g.driveFolderId ?? '');
+        setGSheetId(g.sheetId ?? '');
+        setGFormId(g.formId ?? '');
+      }
+      if (gMapRes.status === 'fulfilled') setGMappings(gMapRes.value.data);
       if (memRes.status   === 'fulfilled') {
         setMembers(memRes.value.data.map((m: Record<string, unknown>) => ({
           userId:   m.userId   ?? (m.user as Record<string, unknown>)?.id,
@@ -206,6 +244,59 @@ export default function SettingsPage() {
     setNtMappings(p => p.filter(m => m.id !== id));
   }
 
+  /* ── Google 핸들러 ── */
+  async function handleGoogleConnect() {
+    try {
+      const res = await api.get(`/projects/${projectId}/google/auth`);
+      window.location.href = res.data.url;
+    } catch { alert('Google OAuth URL 가져오기 실패'); }
+  }
+
+  async function handleGoogleUnlink() {
+    if (!confirm('Google 연동을 해제하시겠습니까?')) return;
+    await api.delete(`/projects/${projectId}/google/unlink`);
+    setGInst(null); setGDriveFolder(''); setGSheetId(''); setGFormId('');
+  }
+
+  async function handleGoogleResources(e: React.FormEvent) {
+    e.preventDefault(); setGSaving(true);
+    try {
+      const res = await api.put(`/projects/${projectId}/google/resources`, {
+        driveFolderId: gDriveFolder || null,
+        sheetId:       gSheetId    || null,
+        formId:        gFormId     || null,
+      });
+      setGInst(res.data);
+      alert('리소스 ID 저장 완료');
+    } catch { alert('저장 실패'); }
+    finally { setGSaving(false); }
+  }
+
+  async function handleGooglePoll() {
+    setGPolling(true); setGPollMsg(null);
+    try {
+      const res = await api.post(`/projects/${projectId}/google/poll`);
+      const r = res.data;
+      setGPollMsg(`완료 — Drive ${r.driveFiles}개, Sheets ${r.sheetsEdits}개, Forms ${r.formResponses}개`);
+    } catch { setGPollMsg('폴링 실패'); }
+    finally { setGPolling(false); }
+  }
+
+  async function handleGoogleAddMapping(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const res = await api.post(`/projects/${projectId}/google/mappings`, {
+        userId: Number(gMapUser), googleEmail: gMapEmail,
+      });
+      setGMappings(p => [...p, res.data]); setGMapUser(''); setGMapEmail('');
+    } catch { alert('매핑 추가 실패'); }
+  }
+
+  async function handleGoogleDelMapping(id: number) {
+    await api.delete(`/projects/${projectId}/google/mappings/${id}`);
+    setGMappings(p => p.filter(m => m.id !== id));
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center h-full text-slate-400 text-sm">로딩 중…</div>
   );
@@ -219,6 +310,7 @@ export default function SettingsPage() {
         {([
           { id: 'github', label: ' GitHub', connected: !!ghInst },
           { id: 'notion', label: 'N  Notion', connected: !!ntInst },
+          { id: 'google', label: 'G  Google', connected: !!gInst?.connected },
         ] as const).map(t => (
           <button
             key={t.id}
@@ -389,6 +481,92 @@ export default function SettingsPage() {
               DB URL 예시: notion.so/<span className="text-violet-300">{'<workspace>'}</span>/<span className="text-emerald-300">{'<database-id>'}</span>?v=...
             </div>
           </Section>
+        </div>
+      )}
+
+      {/* ══════════════════ Google 탭 ══════════════════ */}
+      {activeTab === 'google' && (
+        <div className="space-y-6">
+          {/* OAuth 연동 */}
+          <Section title="Google 계정 연동" badge={gInst?.connected ? '연동됨' : undefined}>
+            {gInst?.connected ? (
+              <InfoGrid rows={[
+                ['연동일시', gInst.connectedAt ? new Date(gInst.connectedAt).toLocaleString('ko-KR') : '—'],
+                ['Drive 폴더', gInst.driveFolderId ?? '전체'],
+                ['Sheet ID',   gInst.sheetId      ?? '미설정'],
+                ['Form ID',    gInst.formId        ?? '미설정'],
+              ]} />
+            ) : (
+              <p className="text-xs text-slate-500">
+                Google Drive, Sheets, Forms 활동을 자동으로 수집합니다.
+                아래 버튼을 누르면 Google 계정 인증 페이지로 이동합니다.
+              </p>
+            )}
+            <ActionRow>
+              {!gInst?.connected && (
+                <Btn onClick={handleGoogleConnect}>Google 연동하기</Btn>
+              )}
+              {gInst?.connected && (
+                <>
+                  <Btn variant="gray" onClick={handleGooglePoll} disabled={gPolling}>
+                    {gPolling ? '폴링 중…' : '즉시 폴링'}
+                  </Btn>
+                  <Btn variant="danger" onClick={handleGoogleUnlink}>연동 해제</Btn>
+                </>
+              )}
+            </ActionRow>
+            {gPollMsg && <Msg>{gPollMsg}</Msg>}
+          </Section>
+
+          {/* 리소스 ID 설정 */}
+          {gInst?.connected && (
+            <Section title="리소스 ID 설정">
+              <p className="text-xs text-slate-500">
+                특정 Drive 폴더, Spreadsheet, Form만 모니터링하려면 ID를 입력하세요.
+                비워두면 전체 Drive를 스캔합니다.
+              </p>
+              <form onSubmit={handleGoogleResources} className="space-y-3">
+                <Field label="Drive 폴더 ID (선택)">
+                  <input value={gDriveFolder} onChange={e => setGDriveFolder(e.target.value)}
+                    placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs" className={inputCls} />
+                </Field>
+                <Field label="Spreadsheet ID (선택)">
+                  <input value={gSheetId} onChange={e => setGSheetId(e.target.value)}
+                    placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs" className={inputCls} />
+                </Field>
+                <Field label="Form ID (선택)">
+                  <input value={gFormId} onChange={e => setGFormId(e.target.value)}
+                    placeholder="1FAIpQLSe..." className={inputCls} />
+                </Field>
+                <ActionRow>
+                  <Btn type="submit" disabled={gSaving}>{gSaving ? '저장 중…' : '저장'}</Btn>
+                </ActionRow>
+              </form>
+              <div className="mt-2 bg-slate-800/60 rounded-lg px-3 py-2 text-xs font-mono text-slate-400">
+                Drive URL 예시: drive.google.com/drive/folders/<span className="text-violet-300">{'<folder-id>'}</span>
+              </div>
+            </Section>
+          )}
+
+          {/* 유저 매핑 */}
+          {gInst?.connected && (
+            <Section title="Google 계정 매핑">
+              <p className="text-xs text-slate-500">
+                팀원의 Google 이메일과 플랫폼 계정을 연결합니다. 이메일이 일치하면 자동 매핑됩니다.
+              </p>
+              <MappingList
+                items={gMappings.map(m => ({ id: m.id, label: m.userName, sub: m.googleEmail }))}
+                onDelete={handleGoogleDelMapping}
+              />
+              <form onSubmit={handleGoogleAddMapping} className="flex gap-2">
+                <MemberSelect value={gMapUser} onChange={setGMapUser}
+                  members={members.filter(m => !gMappings.some(mp => mp.userId === m.userId))} />
+                <input value={gMapEmail} onChange={e => setGMapEmail(e.target.value)}
+                  placeholder="google@gmail.com" required type="email" className={`${inputCls} flex-1`} />
+                <Btn type="submit">추가</Btn>
+              </form>
+            </Section>
+          )}
         </div>
       )}
     </div>

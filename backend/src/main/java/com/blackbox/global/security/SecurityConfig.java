@@ -40,6 +40,7 @@ public class SecurityConfig {
                 // 인증 불필요
                 .requestMatchers(HttpMethod.POST, "/auth/signup", "/auth/login", "/auth/refresh").permitAll()
                 .requestMatchers(HttpMethod.POST, "/github/webhook").permitAll()
+                .requestMatchers(HttpMethod.GET, "/google/oauth/callback").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 // 교수/TA 전용
                 .requestMatchers("/professor/**").hasAnyRole("PROFESSOR", "TA")

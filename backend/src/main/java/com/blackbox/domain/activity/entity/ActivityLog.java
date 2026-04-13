@@ -73,6 +73,11 @@ public class ActivityLog {
         // Notion 연동
         NOTION_PAGE_CREATED,
         NOTION_PAGE_EDITED,
-        NOTION_COMMENT_ADDED
+        NOTION_COMMENT_ADDED,
+        // Google 연동
+        GDRIVE_FILE_UPLOADED,
+        GDRIVE_FILE_MODIFIED,
+        GSHEET_EDITED,
+        GFORM_RESPONSE_SUBMITTED
     }
 }

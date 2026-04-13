@@ -53,6 +53,8 @@ function MeetingDetailContent() {
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [linkCopySuccess, setLinkCopySuccess] = useState(false);
+  const [notionExporting, setNotionExporting] = useState(false);
+  const [notionUrl, setNotionUrl] = useState<string | null>(null);
 
   const checkinUrl = useMemo(() => {
     if (typeof window === 'undefined') return '';
@@ -131,6 +133,18 @@ function MeetingDetailContent() {
     await navigator.clipboard.writeText(checkinUrl);
     setLinkCopySuccess(true);
     setTimeout(() => setLinkCopySuccess(false), 2000);
+  };
+
+  const handleNotionExport = async () => {
+    setNotionExporting(true);
+    try {
+      const res = await api.post(`/projects/${projectId}/notion/push-meeting/${meetingId}`);
+      setNotionUrl(res.data.url);
+    } catch (e: any) {
+      alert(e?.response?.data?.message ?? 'Notion 내보내기 실패. 설정에서 Notion 연동을 확인해 주세요.');
+    } finally {
+      setNotionExporting(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -212,6 +226,33 @@ function MeetingDetailContent() {
             >
               + 액션 아이템 추가
             </button>
+          </div>
+
+          {/* Notion 내보내기 */}
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-slate-300">Notion으로 내보내기</p>
+                <p className="text-xs text-slate-500 mt-0.5">이 회의록을 Notion 데이터베이스에 새 페이지로 저장합니다.</p>
+              </div>
+              <button
+                onClick={handleNotionExport}
+                disabled={notionExporting}
+                className="shrink-0 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-lg transition-all disabled:opacity-50"
+              >
+                {notionExporting ? '내보내는 중...' : 'N Notion에 저장'}
+              </button>
+            </div>
+            {notionUrl && (
+              <a
+                href={notionUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 flex items-center gap-2 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                <span>✓ Notion 페이지가 생성되었습니다 →</span>
+              </a>
+            )}
           </div>
         </div>
 
@@ -346,7 +387,7 @@ function MeetingDetailContent() {
       {/* QR Code Modal */}
       {isQRModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setIsQRModalOpen(false)}>
-          <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-6" onClick={e => e.stopPropagation()}>
+          <div className="force-light bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-6" onClick={e => e.stopPropagation()}>
             <h3 className="text-xl font-bold text-slate-900">회의 체크인 QR 코드</h3>
             <div className="p-4 bg-slate-50 rounded-2xl">
               <QRCodeSVG value={checkinUrl} size={256} />

@@ -279,50 +279,60 @@ export default function TimelinePage() {
 
                   <div className="space-y-1">
                     {group.items.map(log => {
-                      const src   = SOURCE_STYLE[log.source] ?? SOURCE_STYLE.PLATFORM;
-                      const meta  = EVENT_META[log.eventType] ?? { label: log.eventType, icon: '•', color: 'text-slate-400' };
+                      const src     = SOURCE_STYLE[log.source] ?? SOURCE_STYLE.PLATFORM;
+                      const meta    = EVENT_META[log.eventType] ?? { label: log.eventType, icon: '•', color: 'text-slate-400' };
                       const summary = payloadSummary(log.eventType, log.payload);
-                      const sha   = log.payload?.sha as string | undefined;
+                      const sha     = log.payload?.sha as string | undefined;
+                      const notionUrl = log.source === 'NOTION' ? (log.payload?.url as string | undefined) : undefined;
+
+                      const cardContent = (
+                        <>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${src.badge}`}>
+                                {src.icon} {src.label}
+                              </span>
+                              <span className={`text-xs font-semibold ${meta.color}`}>
+                                {meta.icon} {meta.label}
+                              </span>
+                              {sha && <ShaBadge sha={sha} />}
+                            </div>
+                            <span className="text-[11px] text-slate-600 shrink-0 mt-0.5">
+                              {formatTime(log.createdAt)}
+                            </span>
+                          </div>
+                          <div className="mt-1 flex items-baseline gap-2">
+                            <span className="text-xs font-semibold text-slate-300">{log.userName}</span>
+                            {summary && (
+                              <span className="text-xs text-slate-500 truncate max-w-xs">{summary}</span>
+                            )}
+                            {notionUrl && (
+                              <span className="text-[10px] text-slate-600 ml-auto shrink-0">Notion에서 열기 →</span>
+                            )}
+                          </div>
+                        </>
+                      );
 
                       return (
                         <div key={log.id} className="flex gap-3 group">
-                          {/* 점 */}
                           <div className="relative z-10 mt-2.5 shrink-0">
                             <div className={`w-2.5 h-2.5 rounded-full ${src.dot} ring-2 ring-slate-950`} />
                           </div>
 
-                          {/* 카드 */}
-                          <div className="flex-1 bg-slate-900/60 border border-slate-800 hover:border-slate-700 rounded-xl px-4 py-2.5 transition-colors mb-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {/* 소스 뱃지 */}
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${src.badge}`}>
-                                  {src.icon} {src.label}
-                                </span>
-
-                                {/* 이벤트 타입 */}
-                                <span className={`text-xs font-semibold ${meta.color}`}>
-                                  {meta.icon} {meta.label}
-                                </span>
-
-                                {/* SHA 뱃지 (GitHub 커밋) */}
-                                {sha && <ShaBadge sha={sha} />}
-                              </div>
-
-                              {/* 시각 */}
-                              <span className="text-[11px] text-slate-600 shrink-0 mt-0.5">
-                                {formatTime(log.createdAt)}
-                              </span>
+                          {notionUrl ? (
+                            <a
+                              href={notionUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex-1 bg-slate-900/60 border border-slate-800 hover:border-slate-600 rounded-xl px-4 py-2.5 transition-colors mb-1 cursor-pointer"
+                            >
+                              {cardContent}
+                            </a>
+                          ) : (
+                            <div className="flex-1 bg-slate-900/60 border border-slate-800 hover:border-slate-700 rounded-xl px-4 py-2.5 transition-colors mb-1">
+                              {cardContent}
                             </div>
-
-                            {/* 유저명 + 요약 */}
-                            <div className="mt-1 flex items-baseline gap-2">
-                              <span className="text-xs font-semibold text-slate-300">{log.userName}</span>
-                              {summary && (
-                                <span className="text-xs text-slate-500 truncate max-w-xs">{summary}</span>
-                              )}
-                            </div>
-                          </div>
+                          )}
                         </div>
                       );
                     })}

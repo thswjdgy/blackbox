@@ -2,12 +2,14 @@ package com.blackbox.domain.notion.controller;
 
 import com.blackbox.domain.notion.dto.NotionDto;
 import com.blackbox.domain.notion.service.NotionPollService;
+import com.blackbox.domain.notion.service.NotionPushService;
 import com.blackbox.domain.notion.service.NotionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/projects/{projectId}/notion")
@@ -16,6 +18,7 @@ public class NotionController {
 
     private final NotionService     notionService;
     private final NotionPollService pollService;
+    private final NotionPushService pushService;
 
     /** 연동 (Integration Token 저장) */
     @PostMapping("/link")
@@ -68,5 +71,14 @@ public class NotionController {
     @PostMapping("/poll")
     public ResponseEntity<NotionDto.PollResult> poll(@PathVariable Long projectId) {
         return ResponseEntity.ok(pollService.pollNow(projectId));
+    }
+
+    /** 회의록 → Notion 페이지 내보내기 */
+    @PostMapping("/push-meeting/{meetingId}")
+    public ResponseEntity<Map<String, String>> pushMeeting(
+            @PathVariable Long projectId,
+            @PathVariable Long meetingId) {
+        String url = pushService.pushMeeting(projectId, meetingId);
+        return ResponseEntity.ok(Map.of("url", url));
     }
 }

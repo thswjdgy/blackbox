@@ -5,6 +5,7 @@ import { usePathname, useParams, useRouter } from 'next/navigation';
 import { ReactNode, useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
+import { useTheme } from '@/components/ThemeProvider';
 
 /* ── 섹션 좌우 네비게이션 바 ─────────────────────────── */
 interface Tab { name: string; path: string; icon: string }
@@ -73,6 +74,7 @@ export default function ProjectLayout({ children }: { children: ReactNode }) {
   const projectId = params.id as string;
   const { user } = useAuthStore();
 
+  const { theme, toggle: toggleTheme } = useTheme();
   const [projectName, setProjectName] = useState<string>('');
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -161,7 +163,7 @@ export default function ProjectLayout({ children }: { children: ReactNode }) {
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all relative
                   ${isActive
                     ? 'bg-violet-600/20 text-violet-300 border border-violet-500/30'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'}
+                    : 'text-slate-400 hover:text-slate-50 hover:bg-slate-800/60'}
                   ${isCollapsed ? 'justify-center' : ''}`}
               >
                 <span className="text-base shrink-0">{tab.icon}</span>
@@ -173,6 +175,24 @@ export default function ProjectLayout({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
+
+        {/* 테마 토글 */}
+        <div className={`border-t border-slate-800 p-3 ${isCollapsed ? 'flex justify-center' : ''}`}>
+          <button
+            onClick={toggleTheme}
+            title={theme === 'light' ? '다크 모드로 전환' : '라이트 모드로 전환'}
+            className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium
+              text-slate-400 hover:text-slate-50 hover:bg-slate-800/60 transition-all w-full
+              ${isCollapsed ? 'justify-center w-auto' : ''}`}
+          >
+            <span className="text-base shrink-0">{theme === 'light' ? '🌙' : '☀️'}</span>
+            {!isCollapsed && (
+              <span className="animate-fade-in">
+                {theme === 'light' ? '다크 모드' : '라이트 모드'}
+              </span>
+            )}
+          </button>
+        </div>
       </aside>
 
       {/* ── 메인 콘텐츠 ── */}

@@ -49,7 +49,12 @@ public class ScoreEngine {
             // Notion 활동 포인트
             Map.entry(EventType.NOTION_PAGE_CREATED, 4.0),
             Map.entry(EventType.NOTION_PAGE_EDITED,  2.0),
-            Map.entry(EventType.NOTION_COMMENT_ADDED,1.0)
+            Map.entry(EventType.NOTION_COMMENT_ADDED,1.0),
+            // Google 활동 포인트
+            Map.entry(EventType.GDRIVE_FILE_UPLOADED,      5.0),
+            Map.entry(EventType.GDRIVE_FILE_MODIFIED,      2.0),
+            Map.entry(EventType.GSHEET_EDITED,             2.0),
+            Map.entry(EventType.GFORM_RESPONSE_SUBMITTED,  3.0)
     );
 
     private static final double NORMALIZED_CAP = 150.0;
@@ -88,7 +93,9 @@ public class ScoreEngine {
                                       EventType.GITHUB_PR_MERGED, EventType.GITHUB_ISSUE_OPENED,
                                       EventType.GITHUB_ISSUE_CLOSED,
                                       EventType.NOTION_PAGE_CREATED, EventType.NOTION_PAGE_EDITED,
-                                      EventType.NOTION_COMMENT_ADDED);
+                                      EventType.NOTION_COMMENT_ADDED,
+                                      EventType.GDRIVE_FILE_UPLOADED, EventType.GDRIVE_FILE_MODIFIED,
+                                      EventType.GSHEET_EDITED, EventType.GFORM_RESPONSE_SUBMITTED);
 
             rawScores.put(userId, new double[]{taskRaw, meetingRaw, fileRaw, extraRaw});
         }

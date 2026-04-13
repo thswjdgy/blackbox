@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
+import { useTheme } from '@/components/ThemeProvider';
 
 interface Project {
   id: number;
@@ -19,6 +20,7 @@ interface Project {
 export default function DashboardPage() {
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuthStore();
+  const { theme, toggle: toggleTheme } = useTheme();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -78,7 +80,14 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-4">
             <span className="text-slate-400 text-sm">{user?.name} <span className="px-2 py-0.5 rounded-full bg-violet-900/50 text-violet-300 text-xs ml-1">{user?.role}</span></span>
-            <button onClick={handleLogout} className="text-sm text-slate-400 hover:text-white transition-colors">로그아웃</button>
+            <button
+              onClick={toggleTheme}
+              title={theme === 'light' ? '다크 모드' : '라이트 모드'}
+              className="text-lg text-slate-400 hover:text-slate-200 transition-colors"
+            >
+              {theme === 'light' ? '🌙' : '☀️'}
+            </button>
+            <button onClick={handleLogout} className="text-sm text-slate-400 hover:text-slate-50 transition-colors">로그아웃</button>
           </div>
         </div>
       </header>

@@ -68,7 +68,7 @@ public class NotionService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         if (mappingRepository.existsByProjectIdAndUserId(projectId, req.userId()))
-            throw new BusinessException(ErrorCode.ALREADY_CHECKED_IN);
+            throw new BusinessException(ErrorCode.ALREADY_MAPPED);
 
         NotionUserMapping m = NotionUserMapping.builder()
                 .project(project).user(user)

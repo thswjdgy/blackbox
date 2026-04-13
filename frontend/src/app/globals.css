@@ -1,8 +1,42 @@
 @import "tailwindcss";
 
+/* ── 라이트 모드 (기본) : slate 팔레트 반전 ──────────────────── */
 :root {
+  --background: #ffffff;
+  --foreground: #0f172a;
+
+  /* 배경: 눈에 편한 부드러운 회색 계열 (순백 대신)
+     카드: 흰색 — 배경과 대비되어 카드감 살아남
+     텍스트: 충분한 대비의 진한 색 */
+  --color-slate-950: #eef0f3;   /* page bg  — 부드러운 회청색 */
+  --color-slate-900: #ffffff;   /* card bg  — 흰 카드 */
+  --color-slate-800: #f3f5f8;   /* subtle bg (입력창 등) */
+  --color-slate-700: #e2e6ed;   /* hover / 구분선 */
+  --color-slate-600: #a0aec0;   /* border */
+  --color-slate-500: #5a6a7e;   /* muted text   5.4:1 ✓ */
+  --color-slate-400: #3d4f63;   /* secondary    8.0:1 ✓ */
+  --color-slate-300: #2d3c4e;   /* body text   10.5:1 ✓ */
+  --color-slate-200: #1e2d3d;   /* emphasis    13.0:1 ✓ */
+  --color-slate-100: #0f1d2b;   /* heading     16.0:1 ✓ */
+  --color-slate-50:  #050e17;   /* near-black  */
+}
+
+/* ── 다크 모드 : Tailwind 원본 slate 값 복원 ─────────────────── */
+.dark {
   --background: #0f172a;
   --foreground: #f1f5f9;
+
+  --color-slate-950: oklch(0.13 0.014 258.4);
+  --color-slate-900: oklch(0.21 0.012 258.4);
+  --color-slate-800: oklch(0.27 0.013 258.4);
+  --color-slate-700: oklch(0.35 0.015 258.4);
+  --color-slate-600: oklch(0.44 0.017 258.4);
+  --color-slate-500: oklch(0.55 0.019 258.4);
+  --color-slate-400: oklch(0.67 0.016 258.4);
+  --color-slate-300: oklch(0.79 0.011 257.3);
+  --color-slate-200: oklch(0.88 0.007 257.3);
+  --color-slate-100: oklch(0.95 0.003 258.4);
+  --color-slate-50:  oklch(0.98 0.002 247.8);
 }
 
 body {
@@ -11,20 +45,27 @@ body {
   font-family: 'Inter', 'Pretendard', Arial, sans-serif;
 }
 
-/* Shared utility classes */
+/* ── 라이트모드에서 text-white → 진한 색으로 ────────────────── */
+:root:not(.dark) .text-white {
+  color: #0f172a; /* slate-900 원본값 — 버튼 위 흰 글씨도 어두운 색이 되지만
+                     violet/emerald 배경 위에서는 충분히 가독성 있음 */
+}
+
+/* ── Shared utility classes ───────────────────────────────── */
 .input-field {
-  @apply w-full px-4 py-2.5 rounded-xl bg-slate-900/60 border border-slate-600 text-white
-         placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm transition-all;
+  @apply w-full px-4 py-2.5 rounded-xl bg-slate-800/60 border border-slate-600
+         text-slate-50 placeholder-slate-500
+         focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm transition-all;
 }
 
 .btn-primary {
-  @apply py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500
-         hover:to-indigo-500 text-white font-semibold text-sm transition-all
-         shadow-lg shadow-violet-900/30 disabled:opacity-50 disabled:cursor-not-allowed;
+  @apply py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600
+         hover:from-violet-500 hover:to-indigo-500 text-white font-semibold text-sm
+         transition-all shadow-lg shadow-violet-900/30
+         disabled:opacity-50 disabled:cursor-not-allowed;
 }
 
 .btn-secondary {
-  @apply py-2.5 rounded-xl border border-slate-600 hover:border-slate-500 text-slate-300
-         hover:text-white font-semibold text-sm transition-all;
+  @apply py-2.5 rounded-xl border border-slate-600 hover:border-slate-500
+         text-slate-300 hover:text-slate-50 font-semibold text-sm transition-all;
 }
-

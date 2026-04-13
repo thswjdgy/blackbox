@@ -23,7 +23,7 @@
 | Database | **PostgreSQL 16** | Docker 컨테이너, 직접 관리 |
 | File Storage | **로컬 파일 시스템** | Docker 볼륨 `/data/uploads/` |
 | Auth | JWT (Access 30min + Refresh 7day) | Spring Security |
-| External API | GitHub App API, Google Drive API | 확장 1 단계 |
+| External API | GitHub API, **Notion API** | 확장 1 단계 (Google Drive → Notion으로 변경) |
 | AI | Claude API (Anthropic) | 확장 2 단계 |
 | CSS | Tailwind CSS 3.x | shadcn/ui 컴포넌트 |
 | Chart | Recharts | 대시보드 차트 |

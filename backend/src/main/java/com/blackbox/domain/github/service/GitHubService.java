@@ -69,7 +69,7 @@ public class GitHubService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         if (mappingRepository.existsByProjectIdAndUserId(projectId, req.userId())) {
-            throw new BusinessException(ErrorCode.ALREADY_CHECKED_IN); // 이미 매핑됨
+            throw new BusinessException(ErrorCode.ALREADY_MAPPED);
         }
 
         GitHubUserMapping mapping = GitHubUserMapping.builder()

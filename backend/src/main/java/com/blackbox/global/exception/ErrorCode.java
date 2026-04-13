@@ -31,6 +31,10 @@ public enum ErrorCode {
     CHECKIN_CODE_INVALID(HttpStatus.BAD_REQUEST, "체크인 코드가 올바르지 않습니다."),
     ALREADY_CHECKED_IN(HttpStatus.CONFLICT, "이미 체크인한 회의입니다."),
 
+    // 외부 연동
+    ALREADY_MAPPED(HttpStatus.CONFLICT, "이미 매핑된 사용자입니다."),
+    INTEGRATION_NOT_FOUND(HttpStatus.NOT_FOUND, "연동 정보를 찾을 수 없습니다."),
+
     // General
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "입력값이 올바르지 않습니다."),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),

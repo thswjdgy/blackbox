@@ -181,32 +181,32 @@
 
 ## Phase 6: 확장 1 — 외부 연동 (9~12주)
 
-### 🟡 P1 — GitHub App 연동
-- [ ] GitHub App 등록 & 설정
-- [ ] Installation webhook 수신 엔드포인트
-- [ ] Push/PR/Issue webhook 파싱
-- [ ] 커밋 데이터 → `activity_logs` (source: GITHUB)
-- [ ] 폴백 폴링 (30분 보정)
-- **참조:** `backend/modules/collector.md`
+### 🟡 P1 — GitHub 연동
+- [x] Webhook 수신 엔드포인트 (HMAC-SHA256 검증)
+- [x] Push / PR 이벤트 파싱 → `activity_logs` (source: GITHUB)
+- [x] 폴백 폴링 30분 스케줄 (`GitHubPollService`)
+- [x] 레포 연동 설정 UI (PAT + webhookSecret)
+- [x] GitHub 계정 ↔ 플랫폼 유저 매핑 UI
+- [ ] GitHub App 공식 등록 (실제 배포 시)
 
-### 🟡 P1 — Google Drive 연동
-- [ ] Google OAuth 2.0 연동
-- [ ] Drive Push Notification (Changes: watch)
-- [ ] Revision history 수집
-- [ ] 댓글 수집
-- [ ] 데이터 → `activity_logs` (source: GOOGLE_DRIVE)
-- **참조:** `backend/modules/collector.md`
+### 🟡 P1 — Notion 연동 (Google Drive 대신 채택)
+- [x] Internal Integration Token 기반 연동
+- [x] 워크스페이스 전체 검색 (`POST /search`) 폴링
+- [x] 특정 Database 폴링 (`POST /databases/{id}/query`)
+- [x] 페이지 생성/수정 → `activity_logs` (source: NOTION)
+- [x] Notion 계정 ↔ 플랫폼 유저 매핑 (수동 + 이메일 자동)
+- [x] 연동 설정 UI (token, databaseId, 즉시 폴링)
+- [ ] Notion 유저 ID 조회 도우미 (설정 UI에서 자동 검색)
 
 ### 🟡 P1 — Score Engine 확장
-- [ ] 외부 데이터 통합 점수 산출
-- [ ] Git 기여 점수 세부 수식
-- [ ] 문서 기여 점수 세부 수식
+- [x] GitHub 활동 점수 반영 (push 3점, PR 오픈 4점, PR 머지 6점)
+- [x] Notion 활동 점수 반영 (생성 4점, 수정 2점, 댓글 1점)
 - [ ] 신뢰도 가중치 적용 (자동 1.0, 수동 0.7)
-- **참조:** `backend/modules/score.md`
+- [ ] Git 기여 점수 세부 수식 고도화
 
 ### 🟡 P1 — 프론트: 확장 UI
-- [ ] 외부 연동 설정 페이지
-- [ ] 활동 타임라인 (소스별 색상 구분)
+- [x] 외부 연동 설정 페이지 (GitHub / Notion 탭)
+- [x] 활동 타임라인 (소스별 색상 구분, 멤버 필터)
 - [ ] 교수 상세 대시보드 확장
 
 ---
