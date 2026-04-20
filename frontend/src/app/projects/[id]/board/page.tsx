@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import {
   DndContext,
@@ -10,7 +10,10 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
-  DragOverEvent
+  DragOverEvent,
+  DragStartEvent,
+  DragOverlay,
+  useDroppable,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -28,20 +31,38 @@ const COLUMNS = [
   { id: 'DONE', title: 'Done' }
 ] as const;
 
+type ColId = typeof COLUMNS[number]['id'];
 type Priority = 'LOW' | 'MEDIUM' | 'HIGH';
+
+const COL_IDS = COLUMNS.map(c => c.id) as string[];
+
+function DroppableColumn({ colId, children }: { colId: ColId; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: colId });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex-1 overflow-y-auto space-y-3 custom-scrollbar px-1 pb-4 min-h-[80px] rounded-xl transition-colors duration-150
+        ${isOver ? 'bg-violet-900/10' : ''}`}
+    >
+      {children}
+    </div>
+  );
+}
 
 export default function KanbanBoardPage() {
   const params = useParams();
   const projectId = params.id as string;
 
   const [tasks, setTasks] = useState<TaskType[]>([]);
+  const [memberMap, setMemberMap] = useState<Record<number, string>>({});
+  const [members, setMembers] = useState<{ userId: number; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTask, setActiveTask] = useState<TaskType | null>(null);
+  const dragOriginStatus = useRef<string | null>(null);
 
-  // Filter states
   const [filterPriority, setFilterPriority] = useState<Priority | ''>('');
   const [filterTag, setFilterTag] = useState('');
 
-  // Modal states
   const [selectedTask, setSelectedTask] = useState<TaskType | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -51,8 +72,17 @@ export default function KanbanBoardPage() {
 
   const fetchTasks = async () => {
     try {
-      const res = await api.get(`/projects/${projectId}/tasks`);
-      setTasks(res.data);
+      const [taskRes, memberRes] = await Promise.all([
+        api.get(`/projects/${projectId}/tasks`),
+        api.get(`/projects/${projectId}/members`),
+      ]);
+      setTasks(taskRes.data);
+      const list = (memberRes.data ?? []).map((m: Record<string, unknown>) => ({
+        userId: m.userId as number,
+        name: m.name as string,
+      }));
+      setMembers(list);
+      setMemberMap(Object.fromEntries(list.map((m: { userId: number; name: string }) => [m.userId, m.name])));
     } catch (e) {
       console.error('Failed to fetch tasks', e);
     } finally {
@@ -65,85 +95,63 @@ export default function KanbanBoardPage() {
     useSensor(KeyboardSensor)
   );
 
+  const getContainer = (id: string | number): ColId | undefined => {
+    if (COL_IDS.includes(String(id))) return id as ColId;
+    return tasks.find(t => t.id === id)?.status;
+  };
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const task = tasks.find(t => t.id === event.active.id);
+    setActiveTask(task ?? null);
+    dragOriginStatus.current = task?.status ?? null;
+  };
+
   const handleDragOver = (event: DragOverEvent) => {
-    try {
-      const { active, over } = event;
-      if (!over) return;
-      
-      const activeId = active.id;
-      const overId = over.id;
+    const { active, over } = event;
+    if (!over) return;
 
-      if (activeId === overId) return;
+    const activeContainer = getContainer(active.id);
+    const overContainer = getContainer(over.id);
 
-      const activeContainer = tasks.find(t => t.id === activeId)?.status;
-      const overContainer = COLUMNS.find(c => c.id === overId)?.id || tasks.find(t => t.id === overId)?.status;
+    if (!activeContainer || !overContainer || activeContainer === overContainer) return;
 
-      if (!activeContainer || !overContainer || activeContainer === overContainer) return;
-
-      setTasks((prev) => {
-        const activeItems = prev.filter(t => t.status === activeContainer);
-        const overItems = prev.filter(t => t.status === overContainer);
-
-        const activeIndex = activeItems.findIndex(t => t.id === activeId);
-        const overIndex = overItems.findIndex(t => t.id === overId);
-
-        let newIndex;
-        if (overId in COLUMNS.map(c => c.id)) {
-          newIndex = overItems.length + 1;
-        } else {
-          const isBelowOverItem = over && active.rect.current.translated && active.rect.current.translated.top > over.rect.top + over.rect.height;
-          const modifier = isBelowOverItem ? 1 : 0;
-          newIndex = overIndex >= 0 ? overIndex + modifier : overItems.length + 1;
-        }
-
-        const taskCopy = prev.find(t => t.id === activeId)!;
-        return [
-          ...prev.filter(t => t.id !== activeId),
-          { ...taskCopy, status: overContainer as any }
-        ];
-      });
-    } catch (e) {
-      console.error(e);
-    }
+    setTasks(prev => {
+      const task = prev.find(t => t.id === active.id);
+      if (!task) return prev;
+      return prev.map(t => t.id === active.id ? { ...t, status: overContainer } : t);
+    });
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
+    setActiveTask(null);
+    const originalStatus = dragOriginStatus.current;
+    dragOriginStatus.current = null;
     if (!over) return;
 
-    const activeTask = tasks.find(t => t.id === active.id);
-    const originStatus = activeTask?.status;
+    const overContainer = getContainer(over.id);
+    if (!originalStatus || !overContainer) return;
 
-    // Determine target column
-    const overId = over.id;
-    let targetStatus = originStatus;
-    
-    if (COLUMNS.find(c => c.id === overId)) {
-      targetStatus = overId as any;
-    } else {
-      const overTask = tasks.find(t => t.id === overId);
-      if (overTask) targetStatus = overTask.status;
-    }
-
-    if (activeTask && targetStatus && originStatus !== targetStatus) {
-      try {
-        await api.patch(`/projects/${projectId}/tasks/${activeTask.id}/status`, { status: targetStatus });
-        // Status updated locally in onDragOver roughly, but we finalize here.
-        setTasks(prev => prev.map(t => t.id === activeTask.id ? { ...t, status: targetStatus as any } : t));
-      } catch (e) {
-        console.error('Failed to update status', e);
-        fetchTasks(); // rollback on error
+    if (originalStatus !== overContainer) {
+      // 컬럼 이동 — 백엔드에 저장
+      const task = tasks.find(t => t.id === active.id);
+      if (task) {
+        try {
+          await api.patch(`/projects/${projectId}/tasks/${task.id}/status`, { status: overContainer });
+        } catch (e) {
+          console.error('Failed to update status', e);
+          fetchTasks();
+        }
       }
-    } else if (active.id !== over.id && activeTask && targetStatus === originStatus) {
-      // Reording in same column
-      const colTasks = tasks.filter(t => t.status === targetStatus);
-      const oldIndex = colTasks.findIndex(t => t.id === active.id);
-      const newIndex = colTasks.findIndex(t => t.id === over.id);
-
+    } else if (active.id !== over.id) {
+      // Reorder within same column
       setTasks(prev => {
-        const otherTasks = prev.filter(t => t.status !== targetStatus);
-        const reorderedTasks = arrayMove(colTasks, oldIndex, newIndex);
-        return [...otherTasks, ...reorderedTasks];
+        const colTasks = prev.filter(t => t.status === overContainer);
+        const others = prev.filter(t => t.status !== overContainer);
+        const oldIdx = colTasks.findIndex(t => t.id === active.id);
+        const newIdx = colTasks.findIndex(t => t.id === over.id);
+        if (oldIdx === -1 || newIdx === -1) return prev;
+        return [...others, ...arrayMove(colTasks, oldIdx, newIdx)];
       });
     }
   };
@@ -174,7 +182,6 @@ export default function KanbanBoardPage() {
     }
   };
 
-  // 필터 적용
   const filteredTasks = tasks.filter(t => {
     if (filterPriority && t.priority !== filterPriority) return false;
     if (filterTag && !(t as any).tag?.toLowerCase().includes(filterTag.toLowerCase())) return false;
@@ -201,11 +208,8 @@ export default function KanbanBoardPage() {
           </button>
         </div>
 
-        {/* 필터 바 */}
         <div className="flex items-center gap-3 flex-wrap pt-1 border-t border-slate-800">
           <span className="text-xs text-slate-500 font-medium">필터</span>
-
-          {/* 우선순위 */}
           <div className="flex gap-1.5">
             {(['LOW', 'MEDIUM', 'HIGH'] as Priority[]).map(p => (
               <button
@@ -223,8 +227,6 @@ export default function KanbanBoardPage() {
               </button>
             ))}
           </div>
-
-          {/* 태그 */}
           <input
             type="text"
             placeholder="태그 검색..."
@@ -232,8 +234,6 @@ export default function KanbanBoardPage() {
             onChange={e => setFilterTag(e.target.value)}
             className="bg-slate-800/50 border border-slate-700 text-slate-200 text-xs px-3 py-1.5 rounded-lg outline-none focus:border-violet-500 placeholder-slate-600 w-32"
           />
-
-          {/* 초기화 */}
           {activeFilters > 0 && (
             <button
               onClick={() => { setFilterPriority(''); setFilterTag(''); }}
@@ -242,7 +242,6 @@ export default function KanbanBoardPage() {
               초기화 ✕
             </button>
           )}
-
           {activeFilters > 0 && (
             <span className="text-xs text-violet-400 font-medium ml-auto">
               {filteredTasks.length} / {tasks.length} 표시 중
@@ -254,6 +253,7 @@ export default function KanbanBoardPage() {
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
@@ -261,23 +261,30 @@ export default function KanbanBoardPage() {
           {COLUMNS.map(col => {
             const colTasks = filteredTasks.filter(t => t.status === col.id);
             return (
-              <div key={col.id} className="flex flex-col flex-1 min-w-[320px] max-w-sm bg-slate-950/50 rounded-2xl border border-slate-800/80 shadow-2xl p-4 snap-center">
+              <div
+                key={col.id}
+                className="flex flex-col flex-1 min-w-[320px] max-w-sm bg-slate-950/50 rounded-2xl border border-slate-800/80 shadow-2xl p-4 snap-center"
+              >
                 <div className="flex justify-between items-center mb-4 px-2">
-                  <h3 className="font-bold text-slate-200 tracking-wide">{col.title} <span className="ml-2 bg-slate-800 text-slate-400 text-xs px-2 py-0.5 rounded-full">{colTasks.length}</span></h3>
+                  <h3 className="font-bold text-slate-200 tracking-wide">
+                    {col.title}
+                    <span className="ml-2 bg-slate-800 text-slate-400 text-xs px-2 py-0.5 rounded-full">{colTasks.length}</span>
+                  </h3>
                 </div>
-                
-                <SortableContext 
+
+                <SortableContext
                   id={col.id}
                   items={colTasks.map(t => t.id)}
                   strategy={verticalListSortingStrategy}
                 >
-                  <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar px-1 pb-4">
+                  <DroppableColumn colId={col.id}>
                     {colTasks.map(task => (
                       <TaskCard
                         key={task.id}
                         task={task}
                         onClick={() => { setSelectedTask(task); setIsModalOpen(true); }}
                         onDelete={handleDeleteTask}
+                        memberMap={memberMap}
                       />
                     ))}
                     {colTasks.length === 0 && (
@@ -285,37 +292,41 @@ export default function KanbanBoardPage() {
                         여기로 드래그하세요
                       </div>
                     )}
-                  </div>
+                  </DroppableColumn>
                 </SortableContext>
               </div>
             );
           })}
         </div>
+
+        <DragOverlay>
+          {activeTask && (
+            <div className="opacity-90 rotate-2 scale-105">
+              <TaskCard
+                task={activeTask}
+                onClick={() => {}}
+                onDelete={() => {}}
+                memberMap={memberMap}
+              />
+            </div>
+          )}
+        </DragOverlay>
       </DndContext>
 
       <style dangerouslySetInnerHTML={{__html: `
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 8px;
-          height: 8px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(15, 23, 42, 0); 
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(51, 65, 85, 0.5); 
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(71, 85, 105, 0.8); 
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(51,65,85,0.5); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(71,85,105,0.8); }
       `}} />
 
       {isModalOpen && (
-        <TaskModal 
-          isOpen={isModalOpen} 
+        <TaskModal
+          isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           onSave={handleSaveTask}
           initialData={selectedTask || undefined}
+          members={members}
         />
       )}
     </div>

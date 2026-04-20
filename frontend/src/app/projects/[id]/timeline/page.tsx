@@ -71,6 +71,11 @@ const EVENT_META: Record<string, { label: string; icon: string; color: string }>
   NOTION_PAGE_CREATED: { label: '페이지 생성',   icon: '📝', color: 'text-blue-300'   },
   NOTION_PAGE_EDITED:  { label: '페이지 수정',   icon: '✏️', color: 'text-blue-400'   },
   NOTION_COMMENT_ADDED:{ label: '댓글 추가',     icon: '💬', color: 'text-sky-400'    },
+  // Google
+  GDRIVE_FILE_UPLOADED:       { label: '파일 업로드',    icon: '📤', color: 'text-blue-400'  },
+  GDRIVE_FILE_MODIFIED:       { label: '파일 수정',      icon: '📝', color: 'text-blue-300'  },
+  GSHEET_EDITED:              { label: '시트 수정',      icon: '📊', color: 'text-green-400' },
+  GFORM_RESPONSE_SUBMITTED:   { label: '폼 응답 제출',   icon: '📋', color: 'text-indigo-400'},
 };
 
 /* ── 날짜 그룹 헤더 ─────────────────────────────── */
@@ -117,6 +122,13 @@ function payloadSummary(eventType: string, payload: Record<string, unknown>): st
     case 'NOTION_PAGE_EDITED':
     case 'NOTION_COMMENT_ADDED':
       return payload.title ? `${payload.title}` : '';
+    case 'GDRIVE_FILE_UPLOADED':
+    case 'GDRIVE_FILE_MODIFIED':
+      return payload.name ? `${payload.name}` : '';
+    case 'GSHEET_EDITED':
+      return payload.editor ? `${payload.editor}` : '';
+    case 'GFORM_RESPONSE_SUBMITTED':
+      return payload.submittedAt ? `${new Date(String(payload.submittedAt)).toLocaleString('ko-KR')}` : '';
     default:
       return '';
   }
@@ -143,7 +155,7 @@ export default function TimelinePage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
 
-  const [sourceFilter, setSourceFilter] = useState<'ALL' | 'PLATFORM' | 'GITHUB' | 'NOTION'>('ALL');
+  const [sourceFilter, setSourceFilter] = useState<'ALL' | 'PLATFORM' | 'GITHUB' | 'NOTION' | 'GOOGLE_DRIVE'>('ALL');
   const [userFilter,   setUserFilter]   = useState<string>('');
   const [limit] = useState(50);
 
@@ -191,11 +203,12 @@ export default function TimelinePage() {
     }
   }
 
-  const sourceOptions: Array<{ value: 'ALL' | 'PLATFORM' | 'GITHUB' | 'NOTION'; label: string }> = [
-    { value: 'ALL',      label: '전체' },
-    { value: 'PLATFORM', label: '플랫폼' },
-    { value: 'GITHUB',   label: 'GitHub' },
-    { value: 'NOTION',   label: 'Notion' },
+  const sourceOptions: Array<{ value: 'ALL' | 'PLATFORM' | 'GITHUB' | 'NOTION' | 'GOOGLE_DRIVE'; label: string }> = [
+    { value: 'ALL',          label: '전체' },
+    { value: 'PLATFORM',     label: '플랫폼' },
+    { value: 'GITHUB',       label: 'GitHub' },
+    { value: 'NOTION',       label: 'Notion' },
+    { value: 'GOOGLE_DRIVE', label: 'Google' },
   ];
 
   return (
@@ -283,7 +296,10 @@ export default function TimelinePage() {
                       const meta    = EVENT_META[log.eventType] ?? { label: log.eventType, icon: '•', color: 'text-slate-400' };
                       const summary = payloadSummary(log.eventType, log.payload);
                       const sha     = log.payload?.sha as string | undefined;
-                      const notionUrl = log.source === 'NOTION' ? (log.payload?.url as string | undefined) : undefined;
+                      const externalUrl =
+                        log.source === 'NOTION'       ? (log.payload?.url as string | undefined) :
+                        log.source === 'GOOGLE_DRIVE' ? (log.payload?.url as string | undefined) :
+                        undefined;
 
                       const cardContent = (
                         <>
@@ -306,8 +322,10 @@ export default function TimelinePage() {
                             {summary && (
                               <span className="text-xs text-slate-500 truncate max-w-xs">{summary}</span>
                             )}
-                            {notionUrl && (
-                              <span className="text-[10px] text-slate-600 ml-auto shrink-0">Notion에서 열기 →</span>
+                            {externalUrl && (
+                              <span className="text-[10px] text-slate-600 ml-auto shrink-0">
+                                {log.source === 'NOTION' ? 'Notion에서 열기 →' : 'Drive에서 열기 →'}
+                              </span>
                             )}
                           </div>
                         </>
@@ -319,9 +337,9 @@ export default function TimelinePage() {
                             <div className={`w-2.5 h-2.5 rounded-full ${src.dot} ring-2 ring-slate-950`} />
                           </div>
 
-                          {notionUrl ? (
+                          {externalUrl ? (
                             <a
-                              href={notionUrl}
+                              href={externalUrl}
                               target="_blank"
                               rel="noreferrer"
                               className="flex-1 bg-slate-900/60 border border-slate-800 hover:border-slate-600 rounded-xl px-4 py-2.5 transition-colors mb-1 cursor-pointer"

@@ -36,7 +36,8 @@ public class GoogleOAuthService {
     private static final String GOOGLE_TOKEN_URL  = "https://oauth2.googleapis.com/token";
     private static final String GOOGLE_AUTH_URL   = "https://accounts.google.com/o/oauth2/v2/auth";
     private static final String SCOPES =
-            "https://www.googleapis.com/auth/drive.readonly " +
+            "https://www.googleapis.com/auth/drive.file " +          // 앱이 만든 파일 업로드
+            "https://www.googleapis.com/auth/drive.readonly " +       // 드라이브 읽기
             "https://www.googleapis.com/auth/spreadsheets.readonly " +
             "https://www.googleapis.com/auth/forms.responses.readonly " +
             "email profile";

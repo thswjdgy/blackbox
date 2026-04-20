@@ -60,6 +60,14 @@ public class ProjectController {
         return ResponseEntity.ok(projectService.joinByInviteCode(req, user));
     }
 
+    /** GET /api/projects/{id}/members — 멤버 목록 */
+    @GetMapping("/{id}/members")
+    public ResponseEntity<List<ProjectDto.MemberResponse>> getMembers(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(projectService.getMembers(id, user));
+    }
+
     /** PATCH /api/projects/{id}/members/{userId}/role — 역할 변경 */
     @PatchMapping("/{id}/members/{userId}/role")
     public ResponseEntity<Void> updateMemberRole(

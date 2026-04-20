@@ -43,7 +43,7 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'blackbox-auth',
       partialize: (state) => ({
-        // accessToken은 메모리에만, refreshToken은 persist
+        accessToken: state.accessToken,
         refreshToken: state.refreshToken,
         user: state.user,
         isAuthenticated: state.isAuthenticated,

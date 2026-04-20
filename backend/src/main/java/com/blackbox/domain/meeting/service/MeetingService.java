@@ -135,6 +135,38 @@ public class MeetingService {
         return toResponse(refreshed);
     }
 
+    /** 관리자 수동 체크인 */
+    @Transactional
+    public MeetingDto.Response manualCheckin(Long projectId, Long meetingId, Long targetUserId) {
+        Meeting meeting = findMeetingInProject(projectId, meetingId);
+        User user = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if (!meetingAttendeeRepository.existsByIdMeetingIdAndIdUserId(meetingId, targetUserId)) {
+            MeetingAttendee attendee = MeetingAttendee.builder()
+                    .id(new MeetingAttendeeId(meetingId, targetUserId))
+                    .meeting(meeting)
+                    .user(user)
+                    .checkedInAt(Instant.now())
+                    .build();
+            meetingAttendeeRepository.save(attendee);
+            meetingAttendeeRepository.flush();
+        }
+
+        Meeting refreshed = meetingRepository.findById(meetingId).orElseThrow();
+        return toResponse(refreshed);
+    }
+
+    /** 수동 체크인 취소 */
+    @Transactional
+    public MeetingDto.Response removeAttendee(Long projectId, Long meetingId, Long targetUserId) {
+        findMeetingInProject(projectId, meetingId);
+        meetingAttendeeRepository.deleteById(new MeetingAttendeeId(meetingId, targetUserId));
+        meetingAttendeeRepository.flush();
+        Meeting refreshed = meetingRepository.findById(meetingId).orElseThrow();
+        return toResponse(refreshed);
+    }
+
     @Transactional
     public void createActionItem(Long projectId, Long meetingId, Long userId, MeetingDto.ActionItemRequest req) {
         Meeting meeting = findMeetingInProject(projectId, meetingId);

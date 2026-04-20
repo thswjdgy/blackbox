@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
 
 /* ── 타입 ── */
@@ -62,10 +62,13 @@ interface Member {
 type Tab = 'github' | 'notion' | 'google';
 
 export default function SettingsPage() {
-  const params    = useParams();
-  const projectId = params.id as string;
+  const params       = useParams();
+  const searchParams = useSearchParams();
+  const projectId    = params.id as string;
 
-  const [activeTab, setActiveTab] = useState<Tab>('github');
+  const initialTab = (searchParams.get('tab') as Tab | null) ?? 'github';
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
+  const popupRef = useRef<Window | null>(null);
   const [members,   setMembers]   = useState<Member[]>([]);
 
   /* GitHub state */
@@ -109,6 +112,7 @@ export default function SettingsPage() {
 
   useEffect(() => { fetchAll(); }, [projectId]);
 
+
   async function fetchAll() {
     setLoading(true);
     try {
@@ -142,10 +146,10 @@ export default function SettingsPage() {
         setGFormId(g.formId ?? '');
       }
       if (gMapRes.status === 'fulfilled') setGMappings(gMapRes.value.data);
-      if (memRes.status   === 'fulfilled') {
-        setMembers(memRes.value.data.map((m: Record<string, unknown>) => ({
-          userId:   m.userId   ?? (m.user as Record<string, unknown>)?.id,
-          userName: m.userName ?? (m.user as Record<string, unknown>)?.name ?? m.name,
+      if (memRes.status === 'fulfilled') {
+        setMembers((memRes.value.data ?? []).map((m: Record<string, unknown>) => ({
+          userId:   m.userId,
+          userName: m.name,
         })));
       }
     } finally { setLoading(false); }
@@ -248,7 +252,22 @@ export default function SettingsPage() {
   async function handleGoogleConnect() {
     try {
       const res = await api.get(`/projects/${projectId}/google/auth`);
-      window.location.href = res.data.url;
+      const popup = window.open(
+        res.data.url,
+        'google-oauth',
+        'width=600,height=700,left=400,top=100',
+      );
+      if (!popup) { alert('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해 주세요.'); return; }
+      popupRef.current = popup;
+
+      // 팝업이 닫힐 때까지 500ms 간격으로 확인 후 데이터 갱신
+      const timer = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(timer);
+          // 팝업 닫히면 현재 URL에 tab=google 붙여서 새로고침 (가장 확실한 방법)
+          window.location.href = window.location.pathname + '?tab=google';
+        }
+      }, 500);
     } catch { alert('Google OAuth URL 가져오기 실패'); }
   }
 

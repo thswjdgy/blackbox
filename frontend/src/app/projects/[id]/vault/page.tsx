@@ -49,6 +49,8 @@ export default function VaultPage() {
   const [dragging, setDragging] = useState(false);
   const [verifyResults, setVerifyResults] = useState<Record<number, VerifyResult>>({});
   const [verifying, setVerifying] = useState<number | null>(null);
+  const [drivePushing, setDrivePushing] = useState<Record<number, boolean>>({});
+  const [driveUrls, setDriveUrls] = useState<Record<number, string>>({});
 
   const fetchFiles = useCallback(async () => {
     try {
@@ -107,6 +109,19 @@ export default function VaultPage() {
     }
   };
 
+  const handleDrivePush = async (fileId: number) => {
+    setDrivePushing(prev => ({ ...prev, [fileId]: true }));
+    try {
+      const res = await api.post(`/projects/${projectId}/google/push-vault/${fileId}`);
+      setDriveUrls(prev => ({ ...prev, [fileId]: res.data.url }));
+    } catch (e) {
+      console.error('Drive push failed', e);
+      alert('Google Drive 업로드 실패. Google 연동을 확인해주세요.');
+    } finally {
+      setDrivePushing(prev => ({ ...prev, [fileId]: false }));
+    }
+  };
+
   const handleDownload = (vaultId: number, fileName: string) => {
     const token = document.cookie; // fallback; actual token via interceptor
     const link = document.createElement('a');
@@ -123,7 +138,7 @@ export default function VaultPage() {
       <div className="flex shrink-0 items-center justify-between backdrop-blur-md bg-slate-900/40 p-5 rounded-2xl mb-6 border border-slate-800 shadow-xl">
         <div>
           <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-400 to-orange-400">
-            Hash Vault
+            파일 검사
           </h2>
           <p className="text-sm text-slate-400 mt-1">모든 파일은 SHA-256 해시로 고정됩니다. 변조 시 즉시 감지됩니다.</p>
         </div>
@@ -216,20 +231,39 @@ export default function VaultPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex gap-2 shrink-0">
-                    <button
-                      onClick={() => handleVerify(file.id)}
-                      disabled={verifying === file.id}
-                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition-all disabled:opacity-50"
-                    >
-                      {verifying === file.id ? '검증 중...' : '검증'}
-                    </button>
-                    <button
-                      onClick={() => handleDownload(file.id, file.fileName)}
-                      className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/40 text-amber-400 text-xs font-semibold rounded-lg border border-amber-500/20 transition-all"
-                    >
-                      다운로드
-                    </button>
+                  <div className="flex flex-col gap-2 shrink-0">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleVerify(file.id)}
+                        disabled={verifying === file.id}
+                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition-all disabled:opacity-50"
+                      >
+                        {verifying === file.id ? '검증 중...' : '검증'}
+                      </button>
+                      <button
+                        onClick={() => handleDownload(file.id, file.fileName)}
+                        className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/40 text-amber-400 text-xs font-semibold rounded-lg border border-amber-500/20 transition-all"
+                      >
+                        다운로드
+                      </button>
+                      <button
+                        onClick={() => handleDrivePush(file.id)}
+                        disabled={drivePushing[file.id]}
+                        className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 text-xs font-semibold rounded-lg border border-blue-500/20 transition-all disabled:opacity-50"
+                      >
+                        {drivePushing[file.id] ? '업로드 중...' : '📤 Drive'}
+                      </button>
+                    </div>
+                    {driveUrls[file.id] && (
+                      <a
+                        href={driveUrls[file.id]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-400 hover:text-blue-300 text-right"
+                      >
+                        ✓ Drive에서 열기 →
+                      </a>
+                    )}
                   </div>
                 </div>
               </div>

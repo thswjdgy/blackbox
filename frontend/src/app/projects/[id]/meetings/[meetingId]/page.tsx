@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import api from '@/lib/api';
-import { CheckinModal } from '@/components/meeting/CheckinModal';
+import { useAuthStore } from '@/store/authStore';
 import { ActionItemModal } from '@/components/meeting/ActionItemModal';
 
 interface Attendee {
@@ -48,13 +48,15 @@ function MeetingDetailContent() {
   const [notes, setNotes] = useState('');
   const [decisions, setDecisions] = useState('');
   const [saving, setSaving] = useState(false);
-  const [isCheckinOpen, setIsCheckinOpen] = useState(false);
+  const currentUser = useAuthStore(state => state.user);
   const [isActionItemOpen, setIsActionItemOpen] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [linkCopySuccess, setLinkCopySuccess] = useState(false);
   const [notionExporting, setNotionExporting] = useState(false);
   const [notionUrl, setNotionUrl] = useState<string | null>(null);
+  const [driveExporting, setDriveExporting] = useState(false);
+  const [driveUrl, setDriveUrl] = useState<string | null>(null);
 
   const checkinUrl = useMemo(() => {
     if (typeof window === 'undefined') return '';
@@ -83,9 +85,6 @@ function MeetingDetailContent() {
 
   useEffect(() => {
     fetchMeeting();
-    if (searchParams.get('checkin') === 'true') {
-      setIsCheckinOpen(true);
-    }
   }, [fetchMeeting, searchParams]);
 
   const handleSave = async () => {
@@ -101,9 +100,12 @@ function MeetingDetailContent() {
     }
   };
 
-  const handleCheckin = async (code: string) => {
-    await api.post(`/projects/${projectId}/meetings/${meetingId}/checkin`, { checkinCode: code });
-    await fetchMeeting();
+  const handleSelfCheckin = async () => {
+    if (!currentUser) return;
+    const myAttendance = meeting?.attendees.find(a => a.userId === currentUser.id);
+    if (myAttendance?.present) return;
+    const res = await api.post(`/projects/${projectId}/meetings/${meetingId}/attendees/${currentUser.id}`);
+    setMeeting(prev => prev ? { ...prev, attendees: res.data.attendees } : prev);
   };
 
   const handleCreateActionItem = async (title: string, description: string) => {
@@ -133,6 +135,18 @@ function MeetingDetailContent() {
     await navigator.clipboard.writeText(checkinUrl);
     setLinkCopySuccess(true);
     setTimeout(() => setLinkCopySuccess(false), 2000);
+  };
+
+  const handleDriveExport = async () => {
+    setDriveExporting(true);
+    try {
+      const res = await api.post(`/projects/${projectId}/google/push-meeting/${meetingId}`);
+      setDriveUrl(res.data.url);
+    } catch (e: any) {
+      alert(e?.response?.data?.message ?? 'Drive 내보내기 실패. 설정에서 Google 연동을 확인해 주세요.');
+    } finally {
+      setDriveExporting(false);
+    }
   };
 
   const handleNotionExport = async () => {
@@ -244,13 +258,32 @@ function MeetingDetailContent() {
               </button>
             </div>
             {notionUrl && (
-              <a
-                href={notionUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-3 flex items-center gap-2 text-xs text-blue-400 hover:text-blue-300 transition-colors"
-              >
+              <a href={notionUrl} target="_blank" rel="noreferrer"
+                className="mt-3 flex items-center gap-2 text-xs text-blue-400 hover:text-blue-300 transition-colors">
                 <span>✓ Notion 페이지가 생성되었습니다 →</span>
+              </a>
+            )}
+          </div>
+
+          {/* Google Drive 내보내기 */}
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-slate-300">Google Drive로 내보내기</p>
+                <p className="text-xs text-slate-500 mt-0.5">이 회의록을 Google Docs 문서로 Drive에 저장합니다.</p>
+              </div>
+              <button
+                onClick={handleDriveExport}
+                disabled={driveExporting}
+                className="shrink-0 px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 text-xs font-bold rounded-lg transition-all disabled:opacity-50 border border-blue-500/30"
+              >
+                {driveExporting ? '내보내는 중...' : '📄 Drive에 저장'}
+              </button>
+            </div>
+            {driveUrl && (
+              <a href={driveUrl} target="_blank" rel="noreferrer"
+                className="mt-3 flex items-center gap-2 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                <span>✓ Google Docs 문서가 생성되었습니다 →</span>
               </a>
             )}
           </div>
@@ -287,10 +320,13 @@ function MeetingDetailContent() {
                 {linkCopySuccess ? '링크 복사됨 ✓' : '링크 복사'}
               </button>
               <button
-                onClick={() => setIsCheckinOpen(true)}
-                className="py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-all"
+                onClick={handleSelfCheckin}
+                className={`py-2 text-xs font-bold rounded-lg transition-all
+                  ${meeting.attendees.find(a => a.userId === currentUser?.id)?.present
+                    ? 'bg-emerald-600/30 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}
               >
-                직접 체크인
+                {meeting.attendees.find(a => a.userId === currentUser?.id)?.present ? '참석 ✓' : '참석하기'}
               </button>
             </div>
           </div>
@@ -300,9 +336,9 @@ function MeetingDetailContent() {
             <p className="text-xs uppercase font-bold text-slate-400 mb-3 tracking-wider">
               출석 현황 <span className="text-emerald-400 ml-1">{meeting.attendees.filter(a => a.present).length}</span> / {meeting.attendees.length}
             </p>
-            <ul className="space-y-3">
+            <ul className="space-y-2">
               {meeting.attendees.map(a => (
-                <li key={a.userId} className={`flex items-center gap-3 ${!a.present ? 'opacity-50' : ''}`}>
+                <li key={a.userId} className="flex items-center gap-3">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0
                     ${a.present ? 'bg-gradient-to-br from-emerald-500 to-teal-600' : 'bg-slate-800'}`}>
                     {a.name.charAt(0)}
@@ -315,9 +351,21 @@ function MeetingDetailContent() {
                       <p className="text-[10px] text-slate-500">{formatDate(a.checkedInAt)}</p>
                     )}
                   </div>
-                  <span className={`text-xs font-bold shrink-0 ${a.present ? 'text-emerald-400' : 'text-slate-600'}`}>
-                    {a.present ? '참석 ✓' : '미참석'}
-                  </span>
+                  {a.present ? (
+                    <span className="text-xs font-bold shrink-0 px-2 py-1 text-emerald-400">
+                      참석 ✓
+                    </span>
+                  ) : (
+                    <button
+                      onClick={async () => {
+                        const res = await api.post(`/projects/${projectId}/meetings/${meetingId}/attendees/${a.userId}`);
+                        setMeeting(prev => prev ? { ...prev, attendees: res.data.attendees } : prev);
+                      }}
+                      className="text-xs font-bold shrink-0 px-2 py-1 rounded-lg bg-slate-800 text-slate-500 hover:bg-emerald-500/10 hover:text-emerald-400 transition-all"
+                    >
+                      출석 처리
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -371,12 +419,6 @@ function MeetingDetailContent() {
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(51,65,85,0.5); border-radius: 8px; }
       `}} />
-
-      <CheckinModal
-        isOpen={isCheckinOpen}
-        onClose={() => setIsCheckinOpen(false)}
-        onCheckin={handleCheckin}
-      />
 
       <ActionItemModal
         isOpen={isActionItemOpen}

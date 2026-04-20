@@ -35,6 +35,11 @@ public class ProjectService {
     }
 
     /** 프로젝트 상세 */
+    public List<ProjectDto.MemberResponse> getMembers(Long projectId, User requester) {
+        Project project = accessChecker.getAccessibleProject(projectId, requester);
+        return toDetailResponse(project).members();
+    }
+
     public ProjectDto.ProjectDetailResponse getProject(Long projectId, User requester) {
         Project project = accessChecker.getAccessibleProject(projectId, requester);
         return toDetailResponse(project);

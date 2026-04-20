@@ -67,6 +67,24 @@ public class MeetingController {
         return ResponseEntity.ok(meetingService.checkIn(projectId, meetingId, user.getId(), req));
     }
 
+    /** 수동 체크인 (관리자) */
+    @PostMapping("/{meetingId}/attendees/{userId}")
+    public ResponseEntity<MeetingDto.Response> manualCheckin(
+            @PathVariable Long projectId,
+            @PathVariable Long meetingId,
+            @PathVariable Long userId) {
+        return ResponseEntity.ok(meetingService.manualCheckin(projectId, meetingId, userId));
+    }
+
+    /** 체크인 취소 (관리자) */
+    @DeleteMapping("/{meetingId}/attendees/{userId}")
+    public ResponseEntity<MeetingDto.Response> removeAttendee(
+            @PathVariable Long projectId,
+            @PathVariable Long meetingId,
+            @PathVariable Long userId) {
+        return ResponseEntity.ok(meetingService.removeAttendee(projectId, meetingId, userId));
+    }
+
     @PostMapping("/{meetingId}/action-items")
     public ResponseEntity<Void> createActionItem(
             @PathVariable Long projectId,

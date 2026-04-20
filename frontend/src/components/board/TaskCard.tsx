@@ -16,9 +16,10 @@ interface Props {
   task: TaskType;
   onClick: () => void;
   onDelete: (taskId: number) => void;
+  memberMap?: Record<number, string>;
 }
 
-export function TaskCard({ task, onClick, onDelete }: Props) {
+export function TaskCard({ task, onClick, onDelete, memberMap = {} }: Props) {
   const {
     attributes,
     listeners,
@@ -56,14 +57,26 @@ export function TaskCard({ task, onClick, onDelete }: Props) {
         <div className="flex items-center gap-1">
           {task.assigneeIds.length > 0 && (
             <div className="flex -space-x-2">
-              {task.assigneeIds.map(id => (
-                <div key={id} className="w-6 h-6 rounded-full bg-indigo-500 border border-slate-800 flex items-center justify-center text-[10px] font-bold text-white shadow-sm" title={`User ${id}`}>
-                  U{id}
+              {task.assigneeIds.slice(0, 3).map(id => {
+                const name = memberMap[id];
+                const initial = name ? name.charAt(0) : '?';
+                return (
+                  <div
+                    key={id}
+                    className="w-6 h-6 rounded-full bg-indigo-500 border border-slate-800 flex items-center justify-center text-[10px] font-bold text-white shadow-sm"
+                    title={name ?? `User ${id}`}
+                  >
+                    {initial}
+                  </div>
+                );
+              })}
+              {task.assigneeIds.length > 3 && (
+                <div className="w-6 h-6 rounded-full bg-slate-600 border border-slate-800 flex items-center justify-center text-[10px] font-bold text-white shadow-sm">
+                  +{task.assigneeIds.length - 3}
                 </div>
-              ))}
+              )}
             </div>
           )}
-          {/* 삭제 버튼 — 호버 시 표시 */}
           <button
             onClick={e => { e.stopPropagation(); onDelete(task.id); }}
             className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-md flex items-center justify-center text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
@@ -76,6 +89,20 @@ export function TaskCard({ task, onClick, onDelete }: Props) {
       <h4 className="text-sm font-semibold text-slate-100 mb-1 leading-snug">{task.title}</h4>
       {task.description && (
         <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{task.description}</p>
+      )}
+      {task.assigneeIds.length > 0 && memberMap[task.assigneeIds[0]] && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {task.assigneeIds.slice(0, 2).map(id => memberMap[id] && (
+            <span key={id} className="text-[10px] text-indigo-300 bg-indigo-900/30 px-1.5 py-0.5 rounded-md">
+              {memberMap[id]}
+            </span>
+          ))}
+          {task.assigneeIds.length > 2 && (
+            <span className="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded-md">
+              +{task.assigneeIds.length - 2}명
+            </span>
+          )}
+        </div>
       )}
     </div>
   );

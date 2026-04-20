@@ -1,6 +1,7 @@
 package com.blackbox.domain.google.controller;
 
 import com.blackbox.domain.google.dto.GoogleDto;
+import com.blackbox.domain.google.service.GoogleDrivePushService;
 import com.blackbox.domain.google.service.GoogleOAuthService;
 import com.blackbox.domain.google.service.GooglePollService;
 import lombok.RequiredArgsConstructor;
@@ -18,8 +19,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class GoogleController {
 
-    private final GoogleOAuthService oauthService;
-    private final GooglePollService  pollService;
+    private final GoogleOAuthService      oauthService;
+    private final GooglePollService       pollService;
+    private final GoogleDrivePushService  pushService;
 
     @Value("${frontend.base-url:http://localhost:3000}")
     private String frontendBaseUrl;
@@ -39,9 +41,9 @@ public class GoogleController {
             @RequestParam String state) {
         Long projectId = Long.parseLong(state);
         oauthService.handleCallback(code, projectId);
-        // 프론트엔드 설정 페이지로 리다이렉트
+        // 팝업 완료 페이지로 리다이렉트 (팝업이 메시지 전송 후 닫힘)
         return ResponseEntity.status(302)
-                .location(URI.create(frontendBaseUrl + "/projects/" + projectId + "/settings?tab=google"))
+                .location(URI.create(frontendBaseUrl + "/oauth/google/success?projectId=" + projectId))
                 .build();
     }
 
@@ -94,5 +96,25 @@ public class GoogleController {
     @PostMapping("/projects/{projectId}/google/poll")
     public ResponseEntity<GoogleDto.PollResult> poll(@PathVariable Long projectId) {
         return ResponseEntity.ok(pollService.pollNow(projectId));
+    }
+
+    /* ── Drive 내보내기 ── */
+
+    /** 회의록 → Google Drive (Google Docs) */
+    @PostMapping("/projects/{projectId}/google/push-meeting/{meetingId}")
+    public ResponseEntity<Map<String, String>> pushMeeting(
+            @PathVariable Long projectId,
+            @PathVariable Long meetingId) {
+        String url = pushService.pushMeeting(projectId, meetingId);
+        return ResponseEntity.ok(Map.of("url", url));
+    }
+
+    /** Vault 파일 → Google Drive */
+    @PostMapping("/projects/{projectId}/google/push-vault/{fileId}")
+    public ResponseEntity<Map<String, String>> pushVaultFile(
+            @PathVariable Long projectId,
+            @PathVariable Long fileId) {
+        String url = pushService.pushVaultFile(projectId, fileId);
+        return ResponseEntity.ok(Map.of("url", url));
     }
 }

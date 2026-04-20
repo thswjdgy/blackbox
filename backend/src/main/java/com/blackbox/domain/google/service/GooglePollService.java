@@ -104,6 +104,7 @@ public class GooglePollService {
         String sinceStr = DRIVE_FMT.format(since);
         StringBuilder q = new StringBuilder("modifiedTime > '" + sinceStr + "'");
         q.append(" and mimeType != 'application/vnd.google-apps.folder'");
+        q.append(" and 'me' in owners");   // 내가 소유한 파일만
         if (inst.getDriveFolderId() != null && !inst.getDriveFolderId().isBlank()) {
             q.append(" and '" + inst.getDriveFolderId() + "' in parents");
         }
