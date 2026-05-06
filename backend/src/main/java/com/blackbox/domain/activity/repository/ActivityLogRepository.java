@@ -28,9 +28,9 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLog, Long> 
     /** 타임라인: 소스 + 유저 필터 */
     List<ActivityLog> findByProjectIdAndSourceAndUserIdOrderByCreatedAtDesc(Long projectId, String source, Long userId, Pageable pageable);
 
-    /** 프로젝트 내 유저별 이벤트 타입 건수 집계 */
+    /** 프로젝트 내 유저별 이벤트 타입 신뢰도 가중 합산 (수동 0.7, 자동 1.0) */
     @Query("""
-        SELECT a.user.id, a.eventType, COUNT(a)
+        SELECT a.user.id, a.eventType, SUM(a.trustLevel)
         FROM ActivityLog a
         WHERE a.project.id = :projectId
         GROUP BY a.user.id, a.eventType

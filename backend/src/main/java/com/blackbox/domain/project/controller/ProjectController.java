@@ -97,4 +97,14 @@ public class ProjectController {
         projectService.removeMember(id, userId, user);
         return ResponseEntity.noContent().build();
     }
+
+    /** PATCH /api/projects/{id}/members/me/consent — 외부 서비스 동의 업데이트 */
+    @PatchMapping("/{id}/members/me/consent")
+    public ResponseEntity<Void> updateConsent(
+            @PathVariable Long id,
+            @RequestBody ProjectDto.UpdateConsentRequest req,
+            @AuthenticationPrincipal User user) {
+        projectService.updateConsent(id, req, user);
+        return ResponseEntity.noContent().build();
+    }
 }

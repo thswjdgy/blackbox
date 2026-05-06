@@ -43,6 +43,12 @@ public class Meeting {
     @Column(name = "checkin_code", length = 20)
     private String checkinCode;
 
+    @Column(name = "ai_summary", columnDefinition = "TEXT")
+    private String aiSummary;
+
+    @Column(name = "notion_page_id", length = 255)
+    private String notionPageId;
+
     @Column(name = "meeting_at", nullable = false)
     private Instant meetingAt;
 

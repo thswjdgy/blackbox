@@ -41,6 +41,18 @@ public class ProjectMember {
     @Column
     private Instant consentAt;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean consentGithub = false;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean consentDrive = false;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean consentAi = false;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private Instant joinedAt;

@@ -21,6 +21,7 @@ interface MeetingDetail {
   purpose: string | null;
   notes: string | null;
   decisions: string | null;
+  aiSummary: string | null;
   checkinCode: string;
   meetingAt: string;
   createdById: number;
@@ -57,6 +58,7 @@ function MeetingDetailContent() {
   const [notionUrl, setNotionUrl] = useState<string | null>(null);
   const [driveExporting, setDriveExporting] = useState(false);
   const [driveUrl, setDriveUrl] = useState<string | null>(null);
+  const [aiSummarizing, setAiSummarizing] = useState(false);
 
   const checkinUrl = useMemo(() => {
     if (typeof window === 'undefined') return '';
@@ -161,6 +163,18 @@ function MeetingDetailContent() {
     }
   };
 
+  const handleAiSummary = async () => {
+    setAiSummarizing(true);
+    try {
+      const res = await api.post(`/projects/${projectId}/meetings/${meetingId}/ai-summary`);
+      setMeeting(prev => prev ? { ...prev, aiSummary: res.data.aiSummary } : prev);
+    } catch (e: any) {
+      alert(e?.response?.data?.message ?? 'AI 요약 생성에 실패했습니다.');
+    } finally {
+      setAiSummarizing(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!confirm('이 회의를 삭제하시겠습니까?')) return;
     await api.delete(`/projects/${projectId}/meetings/${meetingId}`);
@@ -240,6 +254,46 @@ function MeetingDetailContent() {
             >
               + 액션 아이템 추가
             </button>
+          </div>
+
+          {/* AI 요약 */}
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-xs uppercase font-bold text-slate-400 tracking-wider">AI 회의록 요약</p>
+                <p className="text-xs text-slate-500 mt-0.5">GPT-4.1 nano가 회의 내용을 요약하고 액션아이템을 추출합니다.</p>
+              </div>
+              <button
+                onClick={handleAiSummary}
+                disabled={aiSummarizing}
+                className="shrink-0 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {aiSummarizing ? (
+                  <>
+                    <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    요약 중...
+                  </>
+                ) : (
+                  <>✦ AI 요약 생성</>
+                )}
+              </button>
+            </div>
+
+            {meeting.aiSummary ? (
+              <div className="bg-slate-800/60 border border-purple-500/20 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-bold text-purple-400">✦ GPT-4.1 nano</span>
+                  <span className="text-xs text-slate-500">요약 결과</span>
+                </div>
+                <p className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">
+                  {meeting.aiSummary}
+                </p>
+              </div>
+            ) : (
+              <div className="border border-dashed border-slate-700 rounded-xl p-4 text-center">
+                <p className="text-xs text-slate-500">아직 AI 요약이 생성되지 않았습니다.<br/>회의 노트와 결정사항을 작성한 후 요약을 생성해 보세요.</p>
+              </div>
+            )}
           </div>
 
           {/* Notion 내보내기 */}

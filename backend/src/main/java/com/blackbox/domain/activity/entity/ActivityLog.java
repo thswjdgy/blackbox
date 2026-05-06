@@ -50,6 +50,10 @@ public class ActivityLog {
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> payload;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private double trustLevel = 1.0;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -78,6 +82,8 @@ public class ActivityLog {
         GDRIVE_FILE_UPLOADED,
         GDRIVE_FILE_MODIFIED,
         GSHEET_EDITED,
-        GFORM_RESPONSE_SUBMITTED
+        GFORM_RESPONSE_SUBMITTED,
+        // 수동 신고
+        MANUAL_WORK_REPORTED
     }
 }

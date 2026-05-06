@@ -59,4 +59,22 @@ public class ActivityLogService {
         activityLogRepository.save(logentry);
         log.info("Logged Meeting Event: {} for Project: {}", type, project.getId());
     }
+
+    /** 신뢰도 가중치 지정 가능한 범용 로그 */
+    @Transactional
+    public void log(Project project, User user, Long taskId, Long meetingId,
+                    EventType type, String source, double trustLevel, Map<String, Object> payload) {
+        ActivityLog logentry = ActivityLog.builder()
+                .project(project)
+                .user(user)
+                .taskId(taskId)
+                .meetingId(meetingId)
+                .eventType(type)
+                .source(source)
+                .trustLevel(trustLevel)
+                .payload(payload)
+                .build();
+        activityLogRepository.save(logentry);
+        log.info("Logged {} (trust={}) for Project: {}", type, trustLevel, project.getId());
+    }
 }

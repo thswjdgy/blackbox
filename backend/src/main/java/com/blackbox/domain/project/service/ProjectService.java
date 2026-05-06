@@ -53,6 +53,11 @@ public class ProjectService {
         Project project = Project.builder()
                 .name(req.name())
                 .description(req.description())
+                .courseName(req.courseName())
+                .semester(req.semester())
+                .startDate(req.startDate())
+                .endDate(req.endDate())
+                .createdBy(requester)
                 .inviteCode(inviteCode)
                 .build();
         projectRepository.save(project);
@@ -82,6 +87,10 @@ public class ProjectService {
 
         if (req.name() != null) project.setName(req.name());
         if (req.description() != null) project.setDescription(req.description());
+        if (req.courseName() != null) project.setCourseName(req.courseName());
+        if (req.semester() != null) project.setSemester(req.semester());
+        if (req.startDate() != null) project.setStartDate(req.startDate());
+        if (req.endDate() != null) project.setEndDate(req.endDate());
 
         return toDetailResponse(project);
     }
@@ -142,6 +151,15 @@ public class ProjectService {
         projectMemberRepository.delete(member);
     }
 
+    /** 외부 서비스 동의 업데이트 (본인) */
+    @Transactional
+    public void updateConsent(Long projectId, ProjectDto.UpdateConsentRequest req, User requester) {
+        ProjectMember member = accessChecker.getMember(projectId, requester.getId());
+        member.setConsentGithub(req.consentGithub());
+        member.setConsentDrive(req.consentDrive());
+        member.setConsentAi(req.consentAi());
+    }
+
     // ─── 매핑 헬퍼 ───────────────────────────────────────────
 
     private String generateUniqueInviteCode() {
@@ -155,6 +173,7 @@ public class ProjectService {
     private ProjectDto.ProjectResponse toResponse(Project p) {
         return new ProjectDto.ProjectResponse(
                 p.getId(), p.getName(), p.getDescription(),
+                p.getCourseName(), p.getSemester(), p.getStartDate(), p.getEndDate(),
                 p.getInviteCode(), p.isActive(), p.getMembers().size(), p.getCreatedAt());
     }
 
@@ -167,11 +186,15 @@ public class ProjectService {
                         m.getUser().getRole().name(),
                         m.getProjectRole().name(),
                         m.isDataCollectionConsent(),
+                        m.isConsentGithub(),
+                        m.isConsentDrive(),
+                        m.isConsentAi(),
                         m.getJoinedAt()))
                 .toList();
 
         return new ProjectDto.ProjectDetailResponse(
                 p.getId(), p.getName(), p.getDescription(),
+                p.getCourseName(), p.getSemester(), p.getStartDate(), p.getEndDate(),
                 p.getInviteCode(), p.isActive(), members, p.getCreatedAt());
     }
 }

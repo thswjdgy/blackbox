@@ -8,8 +8,10 @@ import com.blackbox.domain.project.repository.ProjectRepository;
 import com.blackbox.domain.score.dto.ScoreDto;
 import com.blackbox.domain.score.entity.Alert;
 import com.blackbox.domain.score.entity.ContributionScore;
+import com.blackbox.domain.score.entity.ProjectWeight;
 import com.blackbox.domain.score.repository.AlertRepository;
 import com.blackbox.domain.score.repository.ContributionScoreRepository;
+import com.blackbox.domain.score.repository.ProjectWeightRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,11 +27,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ScoreEngine {
 
-    // 가중치 (w1~w4, 합계 = 1.0)
-    private static final double W_TASK    = 0.35;
-    private static final double W_MEETING = 0.30;
-    private static final double W_FILE    = 0.20;
-    private static final double W_EXTRA   = 0.15; // 액션 아이템, 기타 활동
+    // 기본 가중치 (프로젝트별 project_weights 테이블로 오버라이드 가능)
+    private static final double DEFAULT_W_TASK    = 0.35;
+    private static final double DEFAULT_W_MEETING = 0.30;
+    private static final double DEFAULT_W_FILE    = 0.20;
+    private static final double DEFAULT_W_EXTRA   = 0.15;
 
     // 이벤트별 포인트
     private static final Map<EventType, Double> EVENT_POINTS = Map.ofEntries(
@@ -54,7 +56,9 @@ public class ScoreEngine {
             Map.entry(EventType.GDRIVE_FILE_UPLOADED,      5.0),
             Map.entry(EventType.GDRIVE_FILE_MODIFIED,      2.0),
             Map.entry(EventType.GSHEET_EDITED,             2.0),
-            Map.entry(EventType.GFORM_RESPONSE_SUBMITTED,  3.0)
+            Map.entry(EventType.GFORM_RESPONSE_SUBMITTED,  3.0),
+            // 수동 신고 (trust_level=0.7 이미 반영됨)
+            Map.entry(EventType.MANUAL_WORK_REPORTED,      5.0)
     );
 
     private static final double NORMALIZED_CAP = 150.0;
@@ -65,6 +69,7 @@ public class ScoreEngine {
     private final AlertRepository alertRepository;
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final ProjectWeightRepository weightRepository;
 
     /**
      * 특정 프로젝트의 점수를 재계산하고 저장한다.
@@ -73,17 +78,24 @@ public class ScoreEngine {
     public ScoreDto.ProjectScoreReport calculate(Long projectId) {
         log.info("Score calculation started for project {}", projectId);
 
-        var project = projectRepository.findById(projectId).orElseThrow();
+        var project = (com.blackbox.domain.project.entity.Project) projectRepository.findById(projectId).orElseThrow();
         List<ProjectMember> members = projectMemberRepository.findByProjectId(projectId);
 
-        // 1. 활동 로그 집계: {userId -> {EventType -> count}}
-        Map<Long, Map<EventType, Long>> eventCounts = aggregateEvents(projectId);
+        // 프로젝트별 가중치 (없으면 기본값 사용)
+        ProjectWeight pw = weightRepository.findByProjectId(projectId).orElse(null);
+        double wTask    = pw != null ? pw.getWTask()    : DEFAULT_W_TASK;
+        double wMeeting = pw != null ? pw.getWMeeting() : DEFAULT_W_MEETING;
+        double wFile    = pw != null ? pw.getWFile()    : DEFAULT_W_FILE;
+        double wExtra   = pw != null ? pw.getWExtra()   : DEFAULT_W_EXTRA;
+
+        // 1. 활동 로그 집계: {userId -> {EventType -> trustWeightedCount}}
+        Map<Long, Map<EventType, Double>> eventCounts = aggregateEvents(projectId);
 
         // 2. 유저별 raw 점수 계산
         Map<Long, double[]> rawScores = new HashMap<>(); // [task, meeting, file, extra]
         for (ProjectMember member : members) {
             Long userId = member.getUser().getId();
-            Map<EventType, Long> counts = eventCounts.getOrDefault(userId, Collections.emptyMap());
+            Map<EventType, Double> counts = eventCounts.getOrDefault(userId, Collections.emptyMap());
 
             double taskRaw    = score(counts, EventType.TASK_CREATED, EventType.TASK_UPDATED, EventType.TASK_STATUS_CHANGED);
             double meetingRaw = score(counts, EventType.MEETING_CREATED, EventType.MEETING_CHECKIN);
@@ -104,7 +116,7 @@ public class ScoreEngine {
         Map<Long, Double> totals = new HashMap<>();
         for (var entry : rawScores.entrySet()) {
             double[] r = entry.getValue();
-            double total = r[0] * W_TASK + r[1] * W_MEETING + r[2] * W_FILE + r[3] * W_EXTRA;
+            double total = r[0] * wTask + r[1] * wMeeting + r[2] * wFile + r[3] * wExtra;
             totals.put(entry.getKey(), total);
         }
 
@@ -138,7 +150,7 @@ public class ScoreEngine {
         }
 
         // 6. 경보 분석
-        runAlertEngine(projectId, project, members, normalized, totals, eventCounts);
+        runAlertEngine(projectId, (com.blackbox.domain.project.entity.Project) project, members, normalized, totals, eventCounts);
 
         log.info("Score calculation done for project {}", projectId);
         return buildReport(projectId, members, rawScores, totals, normalized, teamAvg, now);
@@ -189,12 +201,11 @@ public class ScoreEngine {
     // ──────────────────────────────────────────────────────────────────────
     // 경보 엔진
     // ──────────────────────────────────────────────────────────────────────
-    private void runAlertEngine(Long projectId, Object project,
+    private void runAlertEngine(Long projectId, com.blackbox.domain.project.entity.Project proj,
                                 List<ProjectMember> members,
                                 Map<Long, Double> normalized,
                                 Map<Long, Double> totals,
-                                Map<Long, Map<EventType, Long>> eventCounts) {
-        var proj = (com.blackbox.domain.project.entity.Project) project;
+                                Map<Long, Map<EventType, Double>> eventCounts) {
 
         // 불균형 감지: max - min > 40%p
         if (members.size() >= 2) {
@@ -234,22 +245,23 @@ public class ScoreEngine {
     // ──────────────────────────────────────────────────────────────────────
     // 내부 헬퍼
     // ──────────────────────────────────────────────────────────────────────
-    private Map<Long, Map<EventType, Long>> aggregateEvents(Long projectId) {
+    private Map<Long, Map<EventType, Double>> aggregateEvents(Long projectId) {
         List<Object[]> rows = activityLogRepository.countByProjectGroupByUserAndType(projectId);
-        Map<Long, Map<EventType, Long>> result = new HashMap<>();
+        Map<Long, Map<EventType, Double>> result = new HashMap<>();
         for (Object[] row : rows) {
             Long userId = (Long) row[0];
             EventType type = (EventType) row[1];
-            Long count = (Long) row[2];
-            result.computeIfAbsent(userId, k -> new HashMap<>()).put(type, count);
+            // SUM(trustLevel) — DB 반환값이 Double 또는 Long일 수 있음
+            double weightedCount = ((Number) row[2]).doubleValue();
+            result.computeIfAbsent(userId, k -> new HashMap<>()).put(type, weightedCount);
         }
         return result;
     }
 
-    private double score(Map<EventType, Long> counts, EventType... types) {
+    private double score(Map<EventType, Double> counts, EventType... types) {
         double sum = 0;
         for (EventType t : types) {
-            sum += counts.getOrDefault(t, 0L) * EVENT_POINTS.getOrDefault(t, 0.0);
+            sum += counts.getOrDefault(t, 0.0) * EVENT_POINTS.getOrDefault(t, 0.0);
         }
         return sum;
     }

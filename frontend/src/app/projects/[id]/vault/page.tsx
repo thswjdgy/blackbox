@@ -51,6 +51,8 @@ export default function VaultPage() {
   const [verifying, setVerifying] = useState<number | null>(null);
   const [drivePushing, setDrivePushing] = useState<Record<number, boolean>>({});
   const [driveUrls, setDriveUrls] = useState<Record<number, string>>({});
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [downloading, setDownloading] = useState<number | null>(null);
 
   const fetchFiles = useCallback(async () => {
     try {
@@ -122,12 +124,36 @@ export default function VaultPage() {
     }
   };
 
-  const handleDownload = (vaultId: number, fileName: string) => {
-    const token = document.cookie; // fallback; actual token via interceptor
-    const link = document.createElement('a');
-    link.href = `/api/files/${vaultId}/download`;
-    link.download = fileName;
-    link.click();
+  const handleDownload = async (vaultId: number, fileName: string) => {
+    setDownloading(vaultId);
+    try {
+      const res = await api.get(`/files/${vaultId}/download`, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('다운로드 실패');
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const handleDelete = async (vaultId: number, fileName: string) => {
+    if (!confirm(`"${fileName}" 파일을 삭제할까요?`)) return;
+    setDeleting(vaultId);
+    try {
+      await api.delete(`/files/${vaultId}`);
+      setFiles(prev => prev.filter(f => f.id !== vaultId));
+    } catch (e) {
+      alert('삭제 실패');
+    } finally {
+      setDeleting(null);
+    }
   };
 
   if (loading) return <div className="p-8 text-slate-400">불러오는 중...</div>;
@@ -242,9 +268,10 @@ export default function VaultPage() {
                       </button>
                       <button
                         onClick={() => handleDownload(file.id, file.fileName)}
-                        className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/40 text-amber-400 text-xs font-semibold rounded-lg border border-amber-500/20 transition-all"
+                        disabled={downloading === file.id}
+                        className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/40 text-amber-400 text-xs font-semibold rounded-lg border border-amber-500/20 transition-all disabled:opacity-50"
                       >
-                        다운로드
+                        {downloading === file.id ? '...' : '다운로드'}
                       </button>
                       <button
                         onClick={() => handleDrivePush(file.id)}
@@ -252,6 +279,13 @@ export default function VaultPage() {
                         className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 text-xs font-semibold rounded-lg border border-blue-500/20 transition-all disabled:opacity-50"
                       >
                         {drivePushing[file.id] ? '업로드 중...' : '📤 Drive'}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(file.id, file.fileName)}
+                        disabled={deleting === file.id}
+                        className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 text-xs font-semibold rounded-lg border border-rose-500/20 transition-all disabled:opacity-50"
+                      >
+                        {deleting === file.id ? '...' : '삭제'}
                       </button>
                     </div>
                     {driveUrls[file.id] && (

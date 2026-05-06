@@ -2,6 +2,7 @@ package com.blackbox.domain.meeting.service;
 
 import com.blackbox.domain.activity.entity.ActivityLog.EventType;
 import com.blackbox.domain.activity.service.ActivityLogService;
+import com.blackbox.domain.ai.service.OpenAiApiService;
 import com.blackbox.domain.meeting.dto.MeetingDto;
 import com.blackbox.domain.meeting.entity.Meeting;
 import com.blackbox.domain.meeting.entity.MeetingAttendee;
@@ -43,6 +44,7 @@ public class MeetingService {
     private final UserRepository userRepository;
     private final TaskRepository taskRepository;
     private final ActivityLogService activityLogService;
+    private final OpenAiApiService openAiApiService;
 
     @Transactional
     public MeetingDto.Response createMeeting(Long projectId, Long userId, MeetingDto.CreateRequest req) {
@@ -167,6 +169,20 @@ public class MeetingService {
         return toResponse(refreshed);
     }
 
+    /** AI 요약 생성 — Claude API 호출 후 meeting.aiSummary 저장 */
+    @Transactional
+    public MeetingDto.Response generateAiSummary(Long projectId, Long meetingId) {
+        Meeting meeting = findMeetingInProject(projectId, meetingId);
+
+        String prompt = buildSummaryPrompt(meeting);
+        String summary = openAiApiService.complete(prompt);
+
+        meeting.setAiSummary(summary);
+        meetingRepository.save(meeting);
+
+        return toResponse(meeting);
+    }
+
     @Transactional
     public void createActionItem(Long projectId, Long meetingId, Long userId, MeetingDto.ActionItemRequest req) {
         Meeting meeting = findMeetingInProject(projectId, meetingId);
@@ -186,6 +202,23 @@ public class MeetingService {
                 meeting.getProject(), user, task.getId(), EventType.TASK_CREATED,
                 Map.of("title", task.getTitle(), "fromMeeting", meetingId.toString())
         );
+    }
+
+    private String buildSummaryPrompt(Meeting meeting) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("아래 회의 내용을 3문장 이내로 핵심만 한국어로 요약해줘. ");
+        sb.append("결정사항이 있으면 마지막에 '• 결정: ...' 형식으로 한 줄만 추가해.\n\n");
+        sb.append("제목: ").append(meeting.getTitle()).append("\n");
+        if (meeting.getPurpose() != null && !meeting.getPurpose().isBlank()) {
+            sb.append("목적: ").append(meeting.getPurpose()).append("\n");
+        }
+        if (meeting.getNotes() != null && !meeting.getNotes().isBlank()) {
+            sb.append("내용: ").append(meeting.getNotes()).append("\n");
+        }
+        if (meeting.getDecisions() != null && !meeting.getDecisions().isBlank()) {
+            sb.append("결정: ").append(meeting.getDecisions()).append("\n");
+        }
+        return sb.toString();
     }
 
     private Meeting findMeetingInProject(Long projectId, Long meetingId) {
@@ -235,6 +268,8 @@ public class MeetingService {
                 .notes(meeting.getNotes())
                 .decisions(meeting.getDecisions())
                 .checkinCode(meeting.getCheckinCode())
+                .aiSummary(meeting.getAiSummary())
+                .notionPageId(meeting.getNotionPageId())
                 .meetingAt(meeting.getMeetingAt())
                 .createdById(meeting.getCreatedBy().getId())
                 .attendees(attendance)

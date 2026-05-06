@@ -1,12 +1,14 @@
 package com.blackbox.domain.project.entity;
 
 import com.blackbox.domain.project.entity.ProjectMember;
+import com.blackbox.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,6 +30,22 @@ public class Project {
 
     @Column(columnDefinition = "TEXT")
     private String description;
+
+    @Column(length = 100)
+    private String courseName;
+
+    @Column(length = 50)
+    private String semester;
+
+    @Column
+    private LocalDate startDate;
+
+    @Column
+    private LocalDate endDate;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by")
+    private User createdBy;
 
     @Column(nullable = false, unique = true, length = 20)
     private String inviteCode;

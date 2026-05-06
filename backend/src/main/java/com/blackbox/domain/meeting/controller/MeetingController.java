@@ -85,6 +85,14 @@ public class MeetingController {
         return ResponseEntity.ok(meetingService.removeAttendee(projectId, meetingId, userId));
     }
 
+    /** AI 요약 생성 — POST /projects/{projectId}/meetings/{meetingId}/ai-summary */
+    @PostMapping("/{meetingId}/ai-summary")
+    public ResponseEntity<MeetingDto.Response> generateAiSummary(
+            @PathVariable Long projectId,
+            @PathVariable Long meetingId) {
+        return ResponseEntity.ok(meetingService.generateAiSummary(projectId, meetingId));
+    }
+
     @PostMapping("/{meetingId}/action-items")
     public ResponseEntity<Void> createActionItem(
             @PathVariable Long projectId,

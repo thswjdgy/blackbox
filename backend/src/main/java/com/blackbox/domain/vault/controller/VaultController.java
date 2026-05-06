@@ -40,11 +40,24 @@ public class VaultController {
     /** 파일 다운로드 */
     @GetMapping("/files/{vaultId}/download")
     public ResponseEntity<Resource> download(@PathVariable Long vaultId) {
+        var vault = vaultService.getVault(vaultId);
         Resource resource = vaultService.download(vaultId);
+        String encodedName = org.springframework.web.util.UriUtils
+                .encodePath(vault.getFileName(), java.nio.charset.StandardCharsets.UTF_8);
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment")
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + vault.getFileName() + "\"; filename*=UTF-8''" + encodedName)
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(resource);
+    }
+
+    /** 파일 삭제 (소프트 삭제) */
+    @DeleteMapping("/files/{vaultId}")
+    public ResponseEntity<Void> delete(
+            @PathVariable Long vaultId,
+            @AuthenticationPrincipal User user) {
+        vaultService.delete(vaultId, user.getId());
+        return ResponseEntity.noContent().build();
     }
 
     /** 해시 무결성 검증 */

@@ -92,19 +92,34 @@ public class VaultService {
     @Transactional(readOnly = true)
     public List<VaultDto.Response> listFiles(Long projectId) {
         return fileVaultRepository.findByProjectIdOrderByCreatedAtDesc(projectId).stream()
+                .filter(fv -> !fv.isDeleted())
                 .map(fv -> toResponse(fv, false))
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
-    public Resource download(Long vaultId) {
-        FileVault vault = fileVaultRepository.findById(vaultId)
+    public FileVault getVault(Long vaultId) {
+        return fileVaultRepository.findById(vaultId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.VAULT_FILE_NOT_FOUND));
+    }
+
+    @Transactional(readOnly = true)
+    public Resource download(Long vaultId) {
+        FileVault vault = getVault(vaultId);
+        if (vault.isDeleted()) throw new BusinessException(ErrorCode.VAULT_FILE_NOT_FOUND);
         try {
             return fileStorageService.load(vault.getFilePath());
         } catch (IOException e) {
             throw new BusinessException(ErrorCode.FILE_STORAGE_ERROR);
         }
+    }
+
+    @Transactional
+    public void delete(Long vaultId, Long userId) {
+        FileVault vault = getVault(vaultId);
+        vault.setDeleted(true);
+        fileVaultRepository.save(vault);
+        log.info("File soft-deleted: vaultId={}, by userId={}", vaultId, userId);
     }
 
     @Transactional

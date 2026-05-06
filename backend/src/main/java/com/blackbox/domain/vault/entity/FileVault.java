@@ -5,14 +5,13 @@ import com.blackbox.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.Immutable;
 
 import java.time.Instant;
 
 @Entity
 @Table(name = "file_vault")
-@Immutable
 @Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -48,6 +47,10 @@ public class FileVault {
     @Column(nullable = false)
     @Builder.Default
     private int version = 1;
+
+    @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
+    private boolean isDeleted = false;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

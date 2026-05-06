@@ -47,6 +47,11 @@ google:
 frontend:
   base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
 
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  api-url: https://api.openai.com/v1/chat/completions
+  model: gpt-4.1-nano
+
 logging:
   level:
     com.blackbox: DEBUG

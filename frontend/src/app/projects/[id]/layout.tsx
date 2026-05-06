@@ -103,6 +103,8 @@ export default function ProjectLayout({ children }: { children: ReactNode }) {
     { name: '회의록',        path: `/projects/${projectId}/meetings`,   icon: '📝' },
     { name: '파일 검사',     path: `/projects/${projectId}/vault`,      icon: '🔒' },
     { name: '기여도 리포트', path: `/projects/${projectId}/report`,     icon: '📊' },
+    { name: '수동 작업 신고', path: `/projects/${projectId}/manual`,   icon: '✍️' },
+    { name: '피어리뷰',     path: `/projects/${projectId}/review`,    icon: '⭐' },
     { name: '타임라인',     path: `/projects/${projectId}/timeline`,   icon: '🕐' },
     { name: '설정',         path: `/projects/${projectId}/settings`,   icon: '⚙️' },
   ];

@@ -54,6 +54,8 @@ public class MeetingDto {
         private String notes;
         private String decisions;
         private String checkinCode;
+        private String aiSummary;
+        private String notionPageId;
         private Instant meetingAt;
         private Long createdById;
         private List<AttendeeResponse> attendees;
