@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
+
+
 @RestController
 @RequestMapping("/projects/{projectId}/notion")
 @RequiredArgsConstructor
@@ -41,6 +43,12 @@ public class NotionController {
             @PathVariable Long projectId) {
         NotionDto.InstallationResponse resp = notionService.getInstallation(projectId);
         return resp != null ? ResponseEntity.ok(resp) : ResponseEntity.notFound().build();
+    }
+
+    /** Notion 워크스페이스 사용자 목록 조회 */
+    @GetMapping("/users")
+    public ResponseEntity<List<NotionDto.NotionUser>> listUsers(@PathVariable Long projectId) {
+        return ResponseEntity.ok(notionService.listUsers(projectId));
     }
 
     /** 유저 매핑 목록 */

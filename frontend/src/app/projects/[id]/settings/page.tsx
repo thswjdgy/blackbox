@@ -107,6 +107,8 @@ export default function SettingsPage() {
   const [ntSaving,     setNtSaving]     = useState(false);
   const [ntPolling,    setNtPolling]    = useState(false);
   const [ntPollMsg,    setNtPollMsg]    = useState<string | null>(null);
+  const [ntUsers,      setNtUsers]      = useState<{id: string; name: string; email: string | null}[]>([]);
+  const [ntLooking,    setNtLooking]    = useState(false);
 
   const [loading, setLoading] = useState(true);
 
@@ -230,6 +232,24 @@ export default function SettingsPage() {
       setNtPollMsg(`완료 — 새 페이지 ${r.created}개, 수정 ${r.edited}개`);
     } catch { setNtPollMsg('폴링 실패'); }
     finally { setNtPolling(false); }
+  }
+
+  async function handleNtLookupUsers() {
+    setNtLooking(true);
+    try {
+      const res = await api.get(`/projects/${projectId}/notion/users`);
+      setNtUsers(res.data ?? []);
+      if ((res.data ?? []).length === 0) alert('워크스페이스에서 사용자를 찾지 못했습니다.');
+    } catch { alert('사용자 조회 실패. Integration Token과 권한을 확인해 주세요.'); }
+    finally { setNtLooking(false); }
+  }
+
+  function handleNtUserSelect(e: React.ChangeEvent<HTMLSelectElement>) {
+    const selected = ntUsers.find(u => u.id === e.target.value);
+    if (selected) {
+      setNtMapNtId(selected.id);
+      setNtMapNtName(selected.name);
+    }
   }
 
   async function handleNtAddMapping(e: React.FormEvent) {
@@ -472,6 +492,35 @@ export default function SettingsPage() {
               }))}
               onDelete={handleNtDelMapping}
             />
+            {/* 사용자 조회 버튼 */}
+            {ntInst && (
+              <div className="flex items-center gap-2">
+                <Btn variant="gray" onClick={handleNtLookupUsers} disabled={ntLooking}>
+                  {ntLooking ? '조회 중…' : '🔍 워크스페이스 사용자 조회'}
+                </Btn>
+                {ntUsers.length > 0 && (
+                  <span className="text-xs text-slate-500">{ntUsers.length}명 발견</span>
+                )}
+              </div>
+            )}
+            {/* 조회 결과 드롭다운 */}
+            {ntUsers.length > 0 && (
+              <div>
+                <label className="text-xs text-slate-500 mb-1 block">조회된 Notion 사용자에서 선택</label>
+                <select
+                  onChange={handleNtUserSelect}
+                  defaultValue=""
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                >
+                  <option value="">— 선택하면 아래 ID/이름이 자동 입력됩니다 —</option>
+                  {ntUsers.map(u => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}{u.email ? ` (${u.email})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <form onSubmit={handleNtAddMapping} className="space-y-2">
               <div className="flex gap-2">
                 <MemberSelect value={ntMapUser} onChange={setNtMapUser}

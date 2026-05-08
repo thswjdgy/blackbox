@@ -39,4 +39,10 @@ public class NotionDto {
             int edited,
             int total
     ) {}
+
+    public record NotionUser(
+            String id,
+            String name,
+            String email   // bot은 null일 수 있음
+    ) {}
 }

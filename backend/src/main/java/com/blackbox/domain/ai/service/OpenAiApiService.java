@@ -31,6 +31,10 @@ public class OpenAiApiService {
     }
 
     public String complete(String userMessage) {
+        return completeWithTokens(userMessage, 300);
+    }
+
+    public String completeWithTokens(String userMessage, int maxTokens) {
         if (apiKey == null || apiKey.isBlank()) {
             log.warn("OPENAI_API_KEY not set — returning placeholder");
             return "[AI 요약 사용 불가: OPENAI_API_KEY가 설정되지 않았습니다]";
@@ -38,7 +42,7 @@ public class OpenAiApiService {
 
         Map<String, Object> body = Map.of(
                 "model", model,
-                "max_tokens", 300,
+                "max_tokens", maxTokens,
                 "messages", List.of(Map.of("role", "user", "content", userMessage))
         );
 
