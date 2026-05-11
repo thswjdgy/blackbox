@@ -22,6 +22,10 @@ interface ProjectDetail {
   active: boolean;
   members: Member[];
   createdAt: string;
+  courseName?: string;
+  semester?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 interface TaskSummary {
@@ -126,10 +130,23 @@ export default function ProjectDetailPage() {
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${project.active ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-500/20' : 'bg-slate-700 text-slate-400 border border-slate-600'}`}>
                 {project.active ? 'Active' : 'Archived'}
               </span>
+              {project.semester && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-400 border border-violet-500/20 font-semibold">
+                  {project.semester}
+                </span>
+              )}
+              {project.courseName && (
+                <span className="text-xs text-slate-400">{project.courseName}</span>
+              )}
               <span className="text-slate-500 text-xs">{new Date(project.createdAt).toLocaleDateString('ko-KR')} 시작</span>
             </div>
             <h1 className="text-4xl font-black text-white mb-3 tracking-tight">{project.name}</h1>
             <p className="text-slate-400 text-base leading-relaxed">{project.description || '이 프로젝트에 대한 설명이 없습니다.'}</p>
+            {(project.startDate || project.endDate) && (
+              <p className="text-xs text-slate-500 mt-2">
+                📅 {project.startDate ?? '?'} ~ {project.endDate ?? '?'}
+              </p>
+            )}
           </div>
           <div className="shrink-0 bg-slate-800/60 backdrop-blur-sm p-5 rounded-2xl border border-slate-700/50 shadow-xl group">
             <p className="text-[10px] uppercase font-bold text-slate-500 mb-2 tracking-widest">초대 코드</p>

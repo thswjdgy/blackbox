@@ -42,6 +42,16 @@ interface Weights {
   updatedAt?: string;
 }
 
+interface WeightHistory {
+  id: number;
+  changedByName: string;
+  wTask: number;
+  wMeeting: number;
+  wFile: number;
+  wExtra: number;
+  changedAt: string;
+}
+
 const GRADE_COLOR: Record<string, string> = {
   A: 'text-emerald-400',
   B: 'text-blue-400',
@@ -96,6 +106,8 @@ export default function ReportPage() {
   const [savedWeights, setSavedWeights] = useState<Weights | null>(null);
   const [savingWeights, setSavingWeights] = useState(false);
   const [weightOpen, setWeightOpen] = useState(false);
+  const [weightHistory, setWeightHistory] = useState<WeightHistory[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -104,13 +116,15 @@ export default function ReportPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [scoreRes, alertRes, weightRes] = await Promise.allSettled([
+      const [scoreRes, alertRes, weightRes, historyRes] = await Promise.allSettled([
         api.get(`/projects/${projectId}/scores`),
         api.get(`/projects/${projectId}/alerts`),
         api.get(`/projects/${projectId}/weights`),
+        api.get(`/projects/${projectId}/weights/history`),
       ]);
       if (scoreRes.status === 'fulfilled') setReport(scoreRes.value.data);
       if (alertRes.status === 'fulfilled') setAlerts(alertRes.value.data);
+      if (historyRes.status === 'fulfilled') setWeightHistory(historyRes.value.data ?? []);
       if (weightRes.status === 'fulfilled') {
         const d = weightRes.value.data ?? {};
         // 대소문자 두 가지 모두 시도 (jackson 직렬화 불확실성 대비)
@@ -191,6 +205,10 @@ export default function ReportPage() {
         updatedAt: res.data?.updatedAt ?? new Date().toISOString(),
       };
       setSavedWeights(saved);
+      // 이력 갱신
+      api.get(`/projects/${projectId}/weights/history`)
+        .then(r => setWeightHistory(r.data ?? []))
+        .catch(() => {});
       // weights 상태는 건드리지 않음 — 슬라이더 위치 유지
     } catch (e) {
       console.error('Failed to save weights', e);
@@ -382,6 +400,52 @@ export default function ReportPage() {
             <p className="text-[10px] text-slate-600 text-right -mt-3">
               마지막 저장: {new Date(savedWeights.updatedAt).toLocaleString('ko-KR')}
             </p>
+          )}
+        </div>
+      )}
+
+      {/* Weight History */}
+      {weightHistory.length > 0 && (
+        <div className="shrink-0">
+          <button
+            onClick={() => setHistoryOpen(o => !o)}
+            className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-300 transition-colors mb-2"
+          >
+            <span className={`transition-transform ${historyOpen ? 'rotate-90' : ''}`}>▶</span>
+            가중치 변경 이력 ({weightHistory.length}건)
+          </button>
+          {historyOpen && (
+            <div className="bg-slate-900/40 border border-slate-800 rounded-2xl overflow-hidden">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-500">
+                    <th className="px-4 py-2.5 text-left font-medium">변경자</th>
+                    <th className="px-3 py-2.5 text-center font-medium">태스크</th>
+                    <th className="px-3 py-2.5 text-center font-medium">회의</th>
+                    <th className="px-3 py-2.5 text-center font-medium">파일</th>
+                    <th className="px-3 py-2.5 text-center font-medium">외부</th>
+                    <th className="px-4 py-2.5 text-right font-medium">변경일시</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {weightHistory.map((h, i) => (
+                    <tr key={h.id} className={`border-b border-slate-800/50 ${i === 0 ? 'bg-amber-500/5' : ''}`}>
+                      <td className="px-4 py-2.5 text-slate-300 font-medium">
+                        {i === 0 && <span className="mr-1.5 text-[10px] text-amber-400 font-bold">최신</span>}
+                        {h.changedByName}
+                      </td>
+                      <td className="px-3 py-2.5 text-center text-slate-400">{(h.wTask * 100).toFixed(0)}%</td>
+                      <td className="px-3 py-2.5 text-center text-slate-400">{(h.wMeeting * 100).toFixed(0)}%</td>
+                      <td className="px-3 py-2.5 text-center text-slate-400">{(h.wFile * 100).toFixed(0)}%</td>
+                      <td className="px-3 py-2.5 text-center text-slate-400">{(h.wExtra * 100).toFixed(0)}%</td>
+                      <td className="px-4 py-2.5 text-right text-slate-600">
+                        {new Date(h.changedAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}

@@ -196,15 +196,29 @@ export default function DashboardPage() {
 
 /* ── Create Project Modal ─────────────────────────────────── */
 function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState({ name: '', description: '' });
+  const [form, setForm] = useState({
+    name: '', description: '',
+    courseName: '', semester: '',
+    startDate: '', endDate: '',
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm(p => ({ ...p, [key]: e.target.value }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.post('/projects', form);
+      await api.post('/projects', {
+        name: form.name,
+        description: form.description,
+        courseName:  form.courseName  || null,
+        semester:    form.semester    || null,
+        startDate:   form.startDate   || null,
+        endDate:     form.endDate     || null,
+      });
       onCreated();
     } catch (err: any) {
       setError(err.response?.data?.message ?? '오류가 발생했습니다.');
@@ -218,11 +232,31 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm text-slate-300 mb-1">프로젝트명 *</label>
-          <input id="create-project-name" className="input-field" required value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="팀 캡스톤 프로젝트 2024" />
+          <input className="input-field" required value={form.name} onChange={set('name')} placeholder="팀 캡스톤 프로젝트 2024" />
         </div>
         <div>
           <label className="block text-sm text-slate-300 mb-1">설명</label>
-          <input id="create-project-desc" className="input-field" value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} placeholder="프로젝트 소개" />
+          <input className="input-field" value={form.description} onChange={set('description')} placeholder="프로젝트 소개" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm text-slate-300 mb-1">강의명</label>
+            <input className="input-field" value={form.courseName} onChange={set('courseName')} placeholder="소프트웨어공학" />
+          </div>
+          <div>
+            <label className="block text-sm text-slate-300 mb-1">학기</label>
+            <input className="input-field" value={form.semester} onChange={set('semester')} placeholder="2025-1" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm text-slate-300 mb-1">시작일</label>
+            <input type="date" className="input-field" value={form.startDate} onChange={set('startDate')} />
+          </div>
+          <div>
+            <label className="block text-sm text-slate-300 mb-1">종료일</label>
+            <input type="date" className="input-field" value={form.endDate} onChange={set('endDate')} />
+          </div>
         </div>
         {error && <p className="text-red-400 text-sm">{error}</p>}
         <div className="flex gap-2 pt-2">
