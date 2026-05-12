@@ -26,7 +26,10 @@ public class AiAnalyzerService {
         // 팀원 정보
         List<ProjectMember> members = memberRepository.findByProjectId(projectId);
         Map<Long, String> nameMap = members.stream()
-                .collect(Collectors.toMap(m -> m.getUser().getId(), m -> m.getUser().getName()));
+                .collect(Collectors.toMap(
+                        m -> m.getUser().getId(),
+                        m -> m.isConsentAi() ? m.getUser().getName() : "익명사용자_" + m.getUser().getId()
+                ));
 
         // 최근 50개 활동 로그
         List<ActivityLog> logs = activityLogRepository.findByProjectIdOrderByCreatedAtDesc(
@@ -73,10 +76,12 @@ public class AiAnalyzerService {
 
         if (report != null && !report.getMembers().isEmpty()) {
             sb.append("\n## 현재 기여도 점수\n");
-            report.getMembers().forEach(m ->
-                    sb.append("- ").append(m.getUserName())
-                            .append(": ").append(String.format("%.1f", m.getNormalizedScore()))
-                            .append("점 (").append(m.getGrade()).append("등급)\n"));
+            report.getMembers().forEach(m -> {
+                String displayName = nameMap.getOrDefault(m.getUserId(), "Unknown");
+                sb.append("- ").append(displayName)
+                        .append(": ").append(String.format("%.1f", m.getNormalizedScore()))
+                        .append("점 (").append(m.getGrade()).append("등급)\n");
+            });
         }
 
         sb.append("\n## 분석 요청\n");

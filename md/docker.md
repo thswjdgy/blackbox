@@ -334,4 +334,3 @@ team-blackbox/
 │   └── app/
 └── docs/                               ← 컨텍스트 .md 파일
 ```
-추가하기

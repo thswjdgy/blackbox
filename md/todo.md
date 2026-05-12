@@ -279,7 +279,7 @@
 - [ ] 커밋 품질 분석 (배치 10건 단위)
 - [ ] quality_score 산출 & `activity_logs` 업데이트
 - [ ] Anti-Gaming 로직 (마감 직전 벼락치기 패턴 탐지)
-- [ ] AI 분석 동의 플로우 (consent_ai_analysis)
+- [x] AI 분석 동의 플로우 (consent_ai_analysis)
 - **참조:** `backend/modules/analyzer.md`
 
 ### 🟢 P2 — 피어리뷰 ✅ 완료
@@ -324,7 +324,6 @@
 | 기능 | 예상 난이도 | 데모 가치 | 비고 |
 |------|------------|-----------|------|
 | AI Analyzer 커밋 품질 분석 | 높음 | 높음 | Claude API 기본 연동은 완료, quality_score·Anti-Gaming 미구현 |
-| AI 분석 동의 플로우 (consent_ai_analysis) | 낮음 | 중간 | 미구현 |
 | GitHub App 공식 연동 | 높음 | 낮음 | 데모는 PAT 대체 가능 |
 | Google Drive Push Notification | 중간 | 낮음 | 현재 폴링 방식 |
 

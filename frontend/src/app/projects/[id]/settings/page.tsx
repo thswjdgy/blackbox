@@ -59,7 +59,7 @@ interface Member {
 }
 
 /* ── 섹션 탭 ── */
-type Tab = 'github' | 'notion' | 'google';
+type Tab = 'github' | 'notion' | 'google' | 'ai';
 
 export default function SettingsPage() {
   const params       = useParams();
@@ -110,6 +110,12 @@ export default function SettingsPage() {
   const [ntUsers,      setNtUsers]      = useState<{id: string; name: string; email: string | null}[]>([]);
   const [ntLooking,    setNtLooking]    = useState(false);
 
+  /* AI Consent state */
+  const [consentAi,     setConsentAi]     = useState(false);
+  const [consentGithub, setConsentGithub] = useState(false);
+  const [consentDrive,  setConsentDrive]  = useState(false);
+  const [aiSaving,      setAiSaving]      = useState(false);
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { fetchAll(); }, [projectId]);
@@ -118,7 +124,8 @@ export default function SettingsPage() {
   async function fetchAll() {
     setLoading(true);
     try {
-      const [ghRes, ghMapRes, ntRes, ntMapRes, gRes, gMapRes, memRes] = await Promise.allSettled([
+      const [projRes, ghRes, ghMapRes, ntRes, ntMapRes, gRes, gMapRes, memRes] = await Promise.allSettled([
+        api.get(`/projects/${projectId}`),
         api.get(`/projects/${projectId}/github`),
         api.get(`/projects/${projectId}/github/mappings`),
         api.get(`/projects/${projectId}/notion`),
@@ -127,6 +134,12 @@ export default function SettingsPage() {
         api.get(`/projects/${projectId}/google/mappings`),
         api.get(`/projects/${projectId}/members`),
       ]);
+
+      if (projRes.status === 'fulfilled' && projRes.value.data) {
+        setConsentAi(projRes.value.data.consentAi ?? false);
+        setConsentGithub(projRes.value.data.consentGithub ?? false);
+        setConsentDrive(projRes.value.data.consentDrive ?? false);
+      }
 
       if (ghRes.status === 'fulfilled' && ghRes.value.data) {
         const g = ghRes.value.data as GitHubInstallation;
@@ -336,6 +349,25 @@ export default function SettingsPage() {
     setGMappings(p => p.filter(m => m.id !== id));
   }
 
+  /* ── AI 핸들러 ── */
+  async function handleToggleAiConsent() {
+    const newVal = !consentAi;
+    setConsentAi(newVal);
+    setAiSaving(true);
+    try {
+      await api.patch(`/projects/${projectId}/members/me/consent`, {
+        consentGithub,
+        consentDrive,
+        consentAi: newVal,
+      });
+    } catch {
+      alert('설정 저장에 실패했습니다.');
+      setConsentAi(!newVal);
+    } finally {
+      setAiSaving(false);
+    }
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center h-full text-slate-400 text-sm">로딩 중…</div>
   );
@@ -350,6 +382,7 @@ export default function SettingsPage() {
           { id: 'github', label: ' GitHub', connected: !!ghInst },
           { id: 'notion', label: 'N  Notion', connected: !!ntInst },
           { id: 'google', label: 'G  Google', connected: !!gInst?.connected },
+          { id: 'ai',     label: '🤖 AI 설정', connected: consentAi },
         ] as const).map(t => (
           <button
             key={t.id}
@@ -635,6 +668,43 @@ export default function SettingsPage() {
               </form>
             </Section>
           )}
+        </div>
+      )}
+
+      {/* ══════════════════ AI 설정 탭 ══════════════════ */}
+      {activeTab === 'ai' && (
+        <div className="space-y-6">
+          <Section title="AI 분석 데이터 제공 동의" badge={consentAi ? '동의됨' : '미동의'}>
+            <p className="text-xs text-slate-500 leading-relaxed mb-4">
+              Team Blackbox의 AI Analyzer(Claude)가 프로젝트 활동 로그를 분석하여 
+              팀의 기여도와 협업 상태를 리포트할 수 있도록 데이터를 제공하는 데 동의합니다.
+              <br />
+              <strong>미동의 시 AI 분석 결과에서 본인의 활동 내역은 "익명사용자"로 처리되어 표시됩니다.</strong>
+            </p>
+            
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={consentAi}
+                onClick={handleToggleAiConsent}
+                disabled={aiSaving}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  consentAi ? 'bg-violet-500' : 'bg-slate-700'
+                } ${aiSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    consentAi ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <span className="text-sm font-medium text-white">
+                {consentAi ? '✅ AI 분석에 동의했습니다' : '❌ 동의하지 않았습니다'}
+              </span>
+            </div>
+            {aiSaving && <p className="text-xs text-violet-400 mt-2">저장 중...</p>}
+          </Section>
         </div>
       )}
     </div>
