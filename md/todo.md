@@ -2,10 +2,10 @@
 
 ## 현재 Phase: 확장 2 (Phase 7 — 13~15주)
 
-> **진행 현황 요약 (2026-04-20 기준)**
+> **진행 현황 요약 (2026-05-12 기준)**
 > - Phase 1~5 (MVP): ✅ 완료
 > - Phase 6 (확장 1 — 외부 연동): ✅ 대부분 완료
-> - Phase 7 (확장 2 — AI & 고도화): 🔄 진행 중 (가중치 조정 완료, 나머지 미구현)
+> - Phase 7 (확장 2 — AI & 고도화): 🔄 진행 중 (가중치·피어리뷰·PDF·수동신고 UI 완료, AI Analyzer 세부 미구현)
 
 ---
 
@@ -275,28 +275,28 @@
 - [x] 가중치 변경 이력 조회 (`weight_history` 테이블 + `GET /projects/{id}/weights/history`)
 
 ### 🟢 P2 — AI Analyzer
-- [ ] Claude API 연동
+- [x] Claude API 연동 (팀 활동 분석 — `AiAnalyzerService`, `POST /projects/{id}/ai-analysis`)
 - [ ] 커밋 품질 분석 (배치 10건 단위)
 - [ ] quality_score 산출 & `activity_logs` 업데이트
 - [ ] Anti-Gaming 로직 (마감 직전 벼락치기 패턴 탐지)
 - [ ] AI 분석 동의 플로우 (consent_ai_analysis)
 - **참조:** `backend/modules/analyzer.md`
 
-### 🟢 P2 — 피어리뷰 ✅ 완료 (백엔드)
+### 🟢 P2 — 피어리뷰 ✅ 완료
 - [x] 피어리뷰 제출 API (`POST /projects/{id}/peer-reviews`) — 중복 방지, 자기평가 차단
 - [x] 피어리뷰 요약 조회 (`GET /projects/{id}/peer-reviews/summary`) — 피평가자별 평균
 - [x] 내가 쓴 리뷰 조회 (`GET /projects/{id}/peer-reviews/me`)
-- [ ] 피어리뷰 UI (프론트엔드)
+- [x] 피어리뷰 UI (프론트엔드) — 별점/익명/수정 기능 포함 (`/projects/[id]/review`)
 
 ### 🟢 P2 — PDF 리포트 ✅ 완료
 - [x] 기여도 리포트 PDF 자동 생성 (`GET /projects/{id}/report/pdf`) — OpenPDF 1.3.30
-- [ ] PDF 다운로드 버튼 (기여도 리포트 페이지 — 프론트엔드)
+- [x] PDF 다운로드 버튼 (기여도 리포트 페이지 — 프론트엔드) — `report/page.tsx` 구현 완료
 
 ### 🟢 P2 — 수동 작업 신고 ✅ 완료
 - [x] 오프라인 기여 신고 API (`POST /projects/{id}/manual-logs`)
 - [x] 신뢰도 가중치 0.7 자동 적용 (`trust_level=0.7` + activity_log 기록)
 - [x] 팀장 승인/거절 (`PATCH /projects/{id}/manual-logs/{id}/review`)
-- [ ] 수동 신고 UI (프론트엔드)
+- [x] 수동 신고 UI (프론트엔드) — 신고 제출·검토·승인·반려 기능 포함 (`/projects/[id]/manual`)
 
 ### 🟢 P2 — 미구현 유스케이스 (Use Case Diagram 기준 구현 예정 6개)
 - [ ] GitHub App 공식 연동 (PAT/Webhook 기반 → GitHub App 마이그레이션)
@@ -318,23 +318,22 @@
 
 ---
 
-## 남은 작업 요약 (2026-04-20)
+## 남은 작업 요약 (2026-05-12)
 
 ### 미구현 (P2 — 선택)
-| 기능 | 예상 난이도 | 데모 가치 |
-|------|------------|-----------|
-| AI Analyzer (Claude API 커밋 분석) | 높음 | 높음 |
-| 피어리뷰 시스템 | 중간 | 높음 |
-| PDF 리포트 생성 | 중간 | 중간 |
-| 수동 작업 신고 | 낮음 | 중간 |
-| 가중치 변경 이력 | 낮음 | 낮음 |
+| 기능 | 예상 난이도 | 데모 가치 | 비고 |
+|------|------------|-----------|------|
+| AI Analyzer 커밋 품질 분석 | 높음 | 높음 | Claude API 기본 연동은 완료, quality_score·Anti-Gaming 미구현 |
+| AI 분석 동의 플로우 (consent_ai_analysis) | 낮음 | 중간 | 미구현 |
+| GitHub App 공식 연동 | 높음 | 낮음 | 데모는 PAT 대체 가능 |
+| Google Drive Push Notification | 중간 | 낮음 | 현재 폴링 방식 |
 
 ### 미완성 (P1 — 작은 개선)
 | 기능 | 비고 |
 |------|------|
 | GitHub App 공식 등록 | 실제 배포 시 필요, 데모는 PAT로 대체 가능 |
 | Notion 유저 ID 조회 도우미 | 설정 편의성 개선 |
-| 신뢰도 가중치 (자동 1.0 / 수동 0.7) | Score Engine 내부 수식 고도화 |
+| Git 기여 점수 세부 수식 고도화 | Score Engine 내부 수식 |
 
 ---
 
