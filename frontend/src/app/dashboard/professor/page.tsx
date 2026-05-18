@@ -42,6 +42,13 @@ export default function ProfessorDashboardPage() {
 
   if (loading) return <div className="p-8 text-slate-300">Loading Dashboard...</div>;
 
+  // 경보 있는 팀 우선, 그 다음 평균 점수 기준 정렬
+  const sortedOverviews = [...overviews].sort((a, b) => {
+    if (b.alertCount !== a.alertCount) return b.alertCount - a.alertCount;
+    return b.averageScore - a.averageScore;
+  });
+  const totalAlerts = overviews.reduce((acc, curr) => acc + curr.alertCount, 0);
+
   return (
     <div className="min-h-screen bg-slate-950 text-white p-8">
       <div className="max-w-6xl mx-auto space-y-8">
@@ -73,10 +80,11 @@ export default function ProfessorDashboardPage() {
               {overviews.length > 0 ? Math.round(overviews.reduce((acc, curr) => acc + curr.averageScore, 0) / overviews.length) : 0} <span className="text-lg text-slate-500 font-normal">점</span>
             </p>
           </div>
-          <div className="bg-red-900/20 border border-red-500/30 p-5 rounded-xl shadow-lg">
-            <h3 className="text-red-400 text-sm font-medium mb-1">총 미해결 알림</h3>
-            <p className="text-3xl font-bold text-red-400">
-              {overviews.reduce((acc, curr) => acc + curr.alertCount, 0)} <span className="text-lg text-red-500/70 font-normal">건</span>
+          <div className={`p-5 rounded-xl shadow-lg border ${totalAlerts > 0 ? 'bg-red-900/20 border-red-500/30' : 'bg-slate-900 border-slate-800'}`}>
+            <h3 className={`text-sm font-medium mb-1 ${totalAlerts > 0 ? 'text-red-400' : 'text-slate-400'}`}>총 미해결 알림</h3>
+            <p className={`text-3xl font-bold flex items-center gap-2 ${totalAlerts > 0 ? 'text-red-400' : 'text-slate-400'}`}>
+              {totalAlerts > 0 && <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />}
+              {totalAlerts} <span className={`text-lg font-normal ${totalAlerts > 0 ? 'text-red-500/70' : 'text-slate-600'}`}>건</span>
             </p>
           </div>
         </div>
@@ -86,7 +94,7 @@ export default function ProfessorDashboardPage() {
           <h2 className="text-xl font-bold mb-6 text-slate-200">팀별 평균 기여도 및 태스크 달성 현황</h2>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={overviews} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+              <BarChart data={sortedOverviews} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                 <XAxis dataKey="projectName" stroke="#94a3b8" tick={{ fill: '#94a3b8' }} />
                 <YAxis yAxisId="left" stroke="#10b981" tick={{ fill: '#94a3b8' }} />
@@ -126,7 +134,7 @@ export default function ProfessorDashboardPage() {
                   <tr>
                     <td colSpan={7} className="p-8 text-center text-slate-500">조회된 프로젝트가 없습니다.</td>
                   </tr>
-                ) : overviews.map(proj => {
+                ) : sortedOverviews.map(proj => {
                   const progress = proj.totalTasks > 0 ? Math.round((proj.completedTasks / proj.totalTasks) * 100) : 0;
                   
                   // 건강도 지표 결정 로직
@@ -153,8 +161,9 @@ export default function ProfessorDashboardPage() {
                       <td className="p-4 font-bold text-emerald-400">{proj.averageScore}</td>
                       <td className="p-4">
                         {proj.alertCount > 0 ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30">
-                            {proj.alertCount} 건 경보
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                            {proj.alertCount}건 경보
                           </span>
                         ) : (
                           <span className="text-xs text-slate-500">안정적</span>

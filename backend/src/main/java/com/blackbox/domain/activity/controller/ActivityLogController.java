@@ -30,10 +30,11 @@ public class ActivityLogController {
             @PathVariable Long projectId,
             @RequestParam(defaultValue = "ALL") String source,
             @RequestParam(required = false)     Long   userId,
-            @RequestParam(defaultValue = "50")  int    limit) {
+            @RequestParam(defaultValue = "50")  int    limit,
+            @RequestParam(defaultValue = "0")   int    page) {
 
         limit = Math.min(limit, 200);
-        var pageable = PageRequest.of(0, limit);
+        var pageable = PageRequest.of(page, limit);
 
         List<ActivityLog> logs;
         boolean allSource = "ALL".equalsIgnoreCase(source);

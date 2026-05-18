@@ -10,6 +10,9 @@ interface MemberScore {
   taskScore: number;
   meetingScore: number;
   fileScore: number;
+  githubScore: number;
+  notionScore: number;
+  googleScore: number;
   totalScore: number;
   normalizedScore: number;
   grade: string;
@@ -26,7 +29,7 @@ interface ProjectScoreReport {
 interface AlertResponse {
   id: number;
   projectId: number;
-  alertType: 'IMBALANCE' | 'INACTIVITY' | 'OVERLOAD';
+  alertType: 'IMBALANCE' | 'INACTIVITY' | 'OVERLOAD' | 'CRAMMING';
   severity: 'INFO' | 'WARNING' | 'CRITICAL';
   message: string;
   resolved: boolean;
@@ -52,6 +55,15 @@ interface WeightHistory {
   changedAt: string;
 }
 
+interface AlertConfig {
+  imbalancePct: number;
+  overloadRatio: number;
+  inactivityDays: number;
+  crammingDays: number;
+  crammingRatio: number;
+  minEvents: number;
+}
+
 const GRADE_COLOR: Record<string, string> = {
   A: 'text-emerald-400',
   B: 'text-blue-400',
@@ -70,6 +82,13 @@ const SEVERITY_ICON: Record<string, string> = {
   CRITICAL: '🚨',
   WARNING:  '⚠️',
   INFO:     'ℹ️',
+};
+
+const ALERT_TYPE_LABEL: Record<string, string> = {
+  IMBALANCE: '기여 불균형',
+  OVERLOAD:  '과부하',
+  INACTIVITY:'무활동 이탈',
+  CRAMMING:  '벼락치기',
 };
 
 const PRESETS: Record<string, Weights> = {
@@ -99,6 +118,8 @@ export default function ReportPage() {
 
   const [report, setReport] = useState<ProjectScoreReport | null>(null);
   const [alerts, setAlerts] = useState<AlertResponse[]>([]);
+  const [alertHistory, setAlertHistory] = useState<AlertResponse[]>([]);
+  const [historyAlertsOpen, setHistoryAlertsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [calculating, setCalculating] = useState(false);
 
@@ -109,6 +130,14 @@ export default function ReportPage() {
   const [weightHistory, setWeightHistory] = useState<WeightHistory[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
 
+  const DEFAULT_ALERT_CFG: AlertConfig = {
+    imbalancePct: 40, overloadRatio: 0.60,
+    inactivityDays: 14, crammingDays: 7, crammingRatio: 0.60, minEvents: 10,
+  };
+  const [alertConfig, setAlertConfig] = useState<AlertConfig>(DEFAULT_ALERT_CFG);
+  const [alertConfigOpen, setAlertConfigOpen] = useState(false);
+  const [savingAlertCfg, setSavingAlertCfg] = useState(false);
+
   useEffect(() => {
     fetchData();
   }, [projectId]);
@@ -116,15 +145,19 @@ export default function ReportPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [scoreRes, alertRes, weightRes, historyRes] = await Promise.allSettled([
+      const [scoreRes, alertRes, alertHistRes, weightRes, historyRes, cfgRes] = await Promise.allSettled([
         api.get(`/projects/${projectId}/scores`),
         api.get(`/projects/${projectId}/alerts`),
+        api.get(`/projects/${projectId}/alerts/history`),
         api.get(`/projects/${projectId}/weights`),
         api.get(`/projects/${projectId}/weights/history`),
+        api.get(`/projects/${projectId}/alert-config`),
       ]);
       if (scoreRes.status === 'fulfilled') setReport(scoreRes.value.data);
       if (alertRes.status === 'fulfilled') setAlerts(alertRes.value.data);
+      if (alertHistRes.status === 'fulfilled') setAlertHistory(alertHistRes.value.data ?? []);
       if (historyRes.status === 'fulfilled') setWeightHistory(historyRes.value.data ?? []);
+      if (cfgRes.status === 'fulfilled') setAlertConfig(cfgRes.value.data);
       if (weightRes.status === 'fulfilled') {
         const d = weightRes.value.data ?? {};
         // 대소문자 두 가지 모두 시도 (jackson 직렬화 불확실성 대비)
@@ -155,8 +188,12 @@ export default function ReportPage() {
     try {
       const res = await api.post(`/projects/${projectId}/scores/calculate`);
       setReport(res.data);
-      const alertRes = await api.get(`/projects/${projectId}/alerts`);
-      setAlerts(alertRes.data);
+      const [alertRes, histRes] = await Promise.allSettled([
+        api.get(`/projects/${projectId}/alerts`),
+        api.get(`/projects/${projectId}/alerts/history`),
+      ]);
+      if (alertRes.status === 'fulfilled') setAlerts(alertRes.value.data);
+      if (histRes.status === 'fulfilled') setAlertHistory(histRes.value.data ?? []);
     } catch (e) {
       console.error('Failed to calculate', e);
     } finally {
@@ -167,7 +204,11 @@ export default function ReportPage() {
   const handleResolveAlert = async (alertId: number) => {
     try {
       await api.patch(`/projects/${projectId}/alerts/${alertId}/resolve`);
+      const resolved = alerts.find(a => a.id === alertId);
       setAlerts(prev => prev.filter(a => a.id !== alertId));
+      if (resolved) {
+        setAlertHistory(prev => [{ ...resolved, resolved: true, resolvedAt: new Date().toISOString() }, ...prev]);
+      }
     } catch (e) {
       console.error('Failed to resolve alert', e);
     }
@@ -215,6 +256,17 @@ export default function ReportPage() {
       alert('가중치 저장 실패');
     } finally {
       setSavingWeights(false);
+    }
+  };
+
+  const handleSaveAlertConfig = async () => {
+    setSavingAlertCfg(true);
+    try {
+      await api.put(`/projects/${projectId}/alert-config`, alertConfig);
+    } catch (e) {
+      alert('경보 설정 저장 실패');
+    } finally {
+      setSavingAlertCfg(false);
     }
   };
 
@@ -282,6 +334,15 @@ export default function ReportPage() {
             {downloadingPdf ? 'PDF 생성 중...' : '📄 PDF 다운로드'}
           </button>
           <button
+            onClick={() => setAlertConfigOpen(o => !o)}
+            className={`py-2.5 px-5 rounded-xl font-bold text-sm transition-all border
+              ${alertConfigOpen
+                ? 'bg-red-500/20 text-red-300 border-red-500/50'
+                : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500'}`}
+          >
+            🔔 경보 설정
+          </button>
+          <button
             onClick={() => setWeightOpen(o => !o)}
             className={`py-2.5 px-5 rounded-xl font-bold text-sm transition-all border
               ${weightOpen
@@ -299,6 +360,64 @@ export default function ReportPage() {
           </button>
         </div>
       </div>
+
+      {/* Alert Config Panel */}
+      {alertConfigOpen && (
+        <div className="shrink-0 bg-slate-900/80 border border-red-500/20 rounded-2xl p-6 space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-red-300 uppercase tracking-wider">경보 임계값 설정</h3>
+              <p className="text-xs text-slate-500 mt-0.5">경보 발생 기준을 프로젝트에 맞게 조정합니다.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              { key: 'imbalancePct',   label: '불균형 임계값 (%p)', min: 10, max: 80,  step: 5,    unit: '%p', desc: '기여도 최대-최소 차이' },
+              { key: 'overloadRatio',  label: '과부하 임계값',      min: 0.3, max: 0.9, step: 0.05, unit: '%',  desc: '1인이 팀 전체의 N% 이상', pct: true },
+              { key: 'inactivityDays', label: '이탈 기준 (일)',      min: 3,  max: 30,  step: 1,    unit: '일', desc: '활동 없는 날 수' },
+              { key: 'crammingDays',   label: '벼락치기 기간 (일)', min: 3,  max: 14,  step: 1,    unit: '일', desc: '집중 활동 감지 기간' },
+              { key: 'crammingRatio',  label: '벼락치기 비율',      min: 0.3, max: 0.9, step: 0.05, unit: '%',  desc: '기간 내 활동이 전체의 N%', pct: true },
+              { key: 'minEvents',      label: '최소 이벤트 수',     min: 3,  max: 50,  step: 1,    unit: '건', desc: '벼락치기 감지 최소 총 활동' },
+            ].map(({ key, label, min, max, step, unit, desc, pct }) => {
+              const val = alertConfig[key as keyof AlertConfig] as number;
+              const display = pct ? `${(val * 100).toFixed(0)}%` : `${val}${unit}`;
+              return (
+                <div key={key}>
+                  <div className="flex justify-between items-center mb-1">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-300">{label}</label>
+                      <p className="text-[10px] text-slate-600">{desc}</p>
+                    </div>
+                    <span className="text-xs font-bold text-white tabular-nums">{display}</span>
+                  </div>
+                  <input
+                    type="range" min={min} max={max} step={step} value={val}
+                    onChange={e => setAlertConfig(p => ({ ...p, [key]: parseFloat(e.target.value) }))}
+                    className="w-full h-2 rounded-full appearance-none cursor-pointer accent-red-500 bg-slate-700"
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex justify-end gap-3 pt-1 border-t border-slate-800">
+            <button
+              onClick={() => setAlertConfig(DEFAULT_ALERT_CFG)}
+              className="text-xs px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200 transition-all"
+            >
+              기본값으로
+            </button>
+            <button
+              onClick={handleSaveAlertConfig}
+              disabled={savingAlertCfg}
+              className="text-sm font-bold px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white disabled:opacity-50 transition-all"
+            >
+              {savingAlertCfg ? '저장 중...' : '설정 저장'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Weight Panel */}
       {weightOpen && (
@@ -459,7 +578,7 @@ export default function ReportPage() {
               <div className="flex items-start gap-3">
                 <span className="text-lg">{SEVERITY_ICON[alert.severity]}</span>
                 <div>
-                  <div className="font-semibold text-sm">{alert.alertType}</div>
+                  <div className="font-semibold text-sm">{ALERT_TYPE_LABEL[alert.alertType] ?? alert.alertType}</div>
                   <div className="text-sm mt-0.5 opacity-90">{alert.message}</div>
                 </div>
               </div>
@@ -471,6 +590,53 @@ export default function ReportPage() {
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Resolved Alert History */}
+      {alertHistory.length > 0 && (
+        <div className="shrink-0">
+          <button
+            onClick={() => setHistoryAlertsOpen(o => !o)}
+            className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-300 transition-colors mb-2"
+          >
+            <span className={`transition-transform ${historyAlertsOpen ? 'rotate-90' : ''}`}>▶</span>
+            경보 이력 ({alertHistory.length}건 해결됨)
+          </button>
+          {historyAlertsOpen && (
+            <div className="bg-slate-900/40 border border-slate-800 rounded-2xl overflow-hidden">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-500">
+                    <th className="px-4 py-2.5 text-left font-medium">유형</th>
+                    <th className="px-4 py-2.5 text-left font-medium">내용</th>
+                    <th className="px-4 py-2.5 text-right font-medium">발생</th>
+                    <th className="px-4 py-2.5 text-right font-medium">해결</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {alertHistory.map(a => (
+                    <tr key={a.id} className="border-b border-slate-800/50">
+                      <td className="px-4 py-2.5">
+                        <span className="inline-flex items-center gap-1.5 text-slate-400">
+                          <span>{SEVERITY_ICON[a.severity]}</span>
+                          <span className="text-emerald-500/80">✓</span>
+                          {ALERT_TYPE_LABEL[a.alertType] ?? a.alertType}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-slate-500 max-w-xs truncate">{a.message}</td>
+                      <td className="px-4 py-2.5 text-right text-slate-600 whitespace-nowrap">
+                        {new Date(a.createdAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-emerald-600 whitespace-nowrap">
+                        {a.resolvedAt ? new Date(a.resolvedAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -529,6 +695,25 @@ export default function ReportPage() {
                     </div>
                   ))}
                 </div>
+
+                {/* External activity breakdown */}
+                {(member.githubScore > 0 || member.notionScore > 0 || member.googleScore > 0) && (
+                  <div className="mt-3 pt-3 border-t border-slate-800/60">
+                    <p className="text-[10px] text-slate-600 uppercase tracking-wider mb-2">외부활동 세부 ({(safeW(savedWeights?.wExtra) * 100).toFixed(0)}% 반영)</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { label: 'GitHub',  value: member.githubScore, color: 'text-purple-400', icon: '🐙' },
+                        { label: 'Notion',  value: member.notionScore, color: 'text-pink-400',   icon: '📓' },
+                        { label: 'Google',  value: member.googleScore, color: 'text-amber-400',  icon: '📁' },
+                      ].map(item => (
+                        <div key={item.label} className="bg-slate-800/40 rounded-lg p-2 text-center">
+                          <div className={`text-sm font-bold ${item.color}`}>{item.value.toFixed(1)}</div>
+                          <div className="text-[10px] text-slate-600 mt-0.5">{item.icon} {item.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
         </div>

@@ -8,7 +8,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useTheme } from '@/components/ThemeProvider';
 
 /* ── 섹션 좌우 네비게이션 바 ─────────────────────────── */
-interface Tab { name: string; path: string; icon: string }
+interface Tab { name: string; path: string; icon: string; badge?: number }
 
 function SectionNav({ tabs, pathname }: { tabs: Tab[]; pathname: string }) {
   const router = useRouter();
@@ -77,6 +77,8 @@ export default function ProjectLayout({ children }: { children: ReactNode }) {
   const { theme, toggle: toggleTheme } = useTheme();
   const [projectName, setProjectName] = useState<string>('');
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [alertCount, setAlertCount] = useState(0);
+  const [myProjectRole, setMyProjectRole] = useState<string>('MEMBER');
 
   useEffect(() => {
     const saved = localStorage.getItem('sidebar-collapsed');
@@ -91,10 +93,24 @@ export default function ProjectLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!projectId) return;
-    api.get(`/projects/${projectId}`)
-      .then(res => setProjectName(res.data.name))
-      .catch(() => setProjectName('프로젝트'));
-  }, [projectId]);
+    api.get(`/projects/${projectId}`).then(res => {
+      setProjectName(res.data.name);
+      // 내 projectRole 파악
+      const me = (res.data.members ?? []).find((m: any) => m.userId === user?.id);
+      if (me) setMyProjectRole(me.projectRole);
+    }).catch(() => setProjectName('프로젝트'));
+
+    // 미해결 경보 수 조회
+    api.get(`/projects/${projectId}/alerts`)
+      .then(res => setAlertCount((res.data ?? []).length))
+      .catch(() => {});
+  }, [projectId, user?.id]);
+
+  // 설정 탭은 LEADER · PROFESSOR · TA 만 표시
+  const canViewSettings =
+    myProjectRole === 'LEADER' ||
+    user?.role === 'PROFESSOR' ||
+    user?.role === 'TA';
 
   const tabs = [
     { name: '대시보드',      path: '/dashboard',                        icon: '🏠' },
@@ -102,12 +118,10 @@ export default function ProjectLayout({ children }: { children: ReactNode }) {
     { name: '태스크 보드',   path: `/projects/${projectId}/board`,      icon: '📋' },
     { name: '회의록',        path: `/projects/${projectId}/meetings`,   icon: '📝' },
     { name: '파일 검사',     path: `/projects/${projectId}/vault`,      icon: '🔒' },
-    { name: '기여도 리포트', path: `/projects/${projectId}/report`,     icon: '📊' },
-    { name: 'AI 분석',      path: `/projects/${projectId}/analysis`,  icon: '🤖' },
-    { name: '수동 작업 신고', path: `/projects/${projectId}/manual`,   icon: '✍️' },
-    { name: '피어리뷰',     path: `/projects/${projectId}/review`,    icon: '⭐' },
-    { name: '타임라인',     path: `/projects/${projectId}/timeline`,   icon: '🕐' },
-    { name: '설정',         path: `/projects/${projectId}/settings`,   icon: '⚙️' },
+    { name: '기여도 리포트', path: `/projects/${projectId}/report`,     icon: '📊', badge: alertCount },
+    { name: 'AI 분석',      path: `/projects/${projectId}/analysis`,   icon: '🤖' },
+    { name: '타임라인',      path: `/projects/${projectId}/timeline`,   icon: '🕐' },
+    ...(canViewSettings ? [{ name: '설정', path: `/projects/${projectId}/settings`, icon: '⚙️' }] : []),
   ];
 
   // 사이드바 상단에 표시할 유저 정보
@@ -169,8 +183,22 @@ export default function ProjectLayout({ children }: { children: ReactNode }) {
                     : 'text-slate-400 hover:text-slate-50 hover:bg-slate-800/60'}
                   ${isCollapsed ? 'justify-center' : ''}`}
               >
-                <span className="text-base shrink-0">{tab.icon}</span>
-                {!isCollapsed && <span className="truncate animate-fade-in">{tab.name}</span>}
+                <span className="text-base shrink-0 relative">
+                  {tab.icon}
+                  {tab.badge && tab.badge > 0 && isCollapsed && (
+                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full text-[8px] font-black text-white flex items-center justify-center">
+                      {tab.badge > 9 ? '9+' : tab.badge}
+                    </span>
+                  )}
+                </span>
+                {!isCollapsed && (
+                  <span className="truncate animate-fade-in flex-1">{tab.name}</span>
+                )}
+                {!isCollapsed && tab.badge && tab.badge > 0 && (
+                  <span className="shrink-0 ml-auto bg-red-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center animate-fade-in">
+                    {tab.badge > 99 ? '99+' : tab.badge}
+                  </span>
+                )}
                 {isActive && !isCollapsed && (
                   <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-violet-500 rounded-r-full" />
                 )}

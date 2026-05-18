@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -81,18 +82,29 @@ public class GitHubWebhookService {
             Optional<User> user = resolveUser(projectId, login, email);
             if (user.isEmpty()) continue;
 
+            @SuppressWarnings("unchecked")
+            List<String> added    = (List<String>) commit.getOrDefault("added",    List.of());
+            @SuppressWarnings("unchecked")
+            List<String> removed  = (List<String>) commit.getOrDefault("removed",  List.of());
+            @SuppressWarnings("unchecked")
+            List<String> modified = (List<String>) commit.getOrDefault("modified", List.of());
+            int filesChanged = added.size() + removed.size() + modified.size();
+
+            Map<String, Object> logPayload = new HashMap<>();
+            logPayload.put("sha",          sha);
+            logPayload.put("message",      message != null ? message.lines().findFirst().orElse("") : "");
+            logPayload.put("repo",         repoFullName);
+            logPayload.put("filesChanged", filesChanged);
+            logPayload.put("scoreWeight",  commitScoreWeight(filesChanged));
+
             activityLogRepository.save(ActivityLog.builder()
                     .project(inst.getProject())
                     .user(user.get())
                     .eventType(ActivityLog.EventType.GITHUB_PUSH)
                     .source("GITHUB")
-                    .payload(Map.of(
-                            "sha",     sha,
-                            "message", message != null ? message.lines().findFirst().orElse("") : "",
-                            "repo",    repoFullName
-                    ))
+                    .payload(logPayload)
                     .build());
-            log.debug("Webhook push saved: sha={} repo={}", sha, repoFullName);
+            log.debug("Webhook push saved: sha={} repo={} files={}", sha, repoFullName, filesChanged);
         }
     }
 
@@ -131,19 +143,28 @@ public class GitHubWebhookService {
         Optional<User> user = resolveUser(projectId, login, null);
         if (user.isEmpty()) return;
 
+        int changedFiles = pr.get("changed_files") instanceof Number n ? n.intValue() : 0;
+        int additions    = pr.get("additions")     instanceof Number n ? n.intValue() : 0;
+        int deletions    = pr.get("deletions")     instanceof Number n ? n.intValue() : 0;
+
+        Map<String, Object> prPayload = new HashMap<>();
+        prPayload.put("sha",          key);
+        prPayload.put("pr",           number);
+        prPayload.put("title",        title != null ? title : "");
+        prPayload.put("repo",         repoFullName);
+        prPayload.put("changedFiles", changedFiles);
+        prPayload.put("additions",    additions);
+        prPayload.put("deletions",    deletions);
+        prPayload.put("scoreWeight",  prScoreWeight(changedFiles, additions + deletions));
+
         activityLogRepository.save(ActivityLog.builder()
                 .project(inst.getProject())
                 .user(user.get())
                 .eventType(type)
                 .source("GITHUB")
-                .payload(Map.of(
-                        "sha",   key,
-                        "pr",    number,
-                        "title", title != null ? title : "",
-                        "repo",  repoFullName
-                ))
+                .payload(prPayload)
                 .build());
-        log.debug("Webhook PR saved: {} repo={}", key, repoFullName);
+        log.debug("Webhook PR saved: {} repo={} files={}", key, repoFullName, changedFiles);
     }
 
     /* ── 유저 매핑 ── */
@@ -156,6 +177,21 @@ public class GitHubWebhookService {
             return userRepository.findByEmail(email);
         }
         return Optional.empty();
+    }
+
+    /** 커밋 변경 파일 수 → scoreWeight */
+    private double commitScoreWeight(int filesChanged) {
+        if (filesChanged == 0)  return 0.5;
+        if (filesChanged <= 5)  return 1.0;
+        if (filesChanged <= 20) return 1.5;
+        return 2.0;
+    }
+
+    /** PR 복잡도 → scoreWeight */
+    private double prScoreWeight(int changedFiles, int linesChanged) {
+        if (changedFiles > 20 || linesChanged > 300) return 2.5;
+        if (changedFiles > 5  || linesChanged > 50)  return 1.5;
+        return 1.0;
     }
 
     /** 타이밍 공격 방지를 위한 상수시간 비교 */

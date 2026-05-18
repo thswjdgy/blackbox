@@ -7,6 +7,7 @@ import java.util.List;
 
 public interface AlertRepository extends JpaRepository<Alert, Long> {
     List<Alert> findByProjectIdAndIsResolvedFalseOrderByCreatedAtDesc(Long projectId);
+    List<Alert> findByProjectIdAndIsResolvedTrueOrderByResolvedAtDesc(Long projectId);
     List<Alert> findByProjectIdOrderByCreatedAtDesc(Long projectId);
     boolean existsByProjectIdAndAlertTypeAndIsResolvedFalse(Long projectId, Alert.AlertType alertType);
 }

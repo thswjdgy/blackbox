@@ -28,14 +28,30 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLog, Long> 
     /** 타임라인: 소스 + 유저 필터 */
     List<ActivityLog> findByProjectIdAndSourceAndUserIdOrderByCreatedAtDesc(Long projectId, String source, Long userId, Pageable pageable);
 
-    /** 프로젝트 내 유저별 이벤트 타입 신뢰도 가중 합산 (수동 0.7, 자동 1.0) */
-    @Query("""
-        SELECT a.user.id, a.eventType, SUM(a.trustLevel)
-        FROM ActivityLog a
-        WHERE a.project.id = :projectId
-        GROUP BY a.user.id, a.eventType
-        """)
+    /**
+     * 프로젝트 내 유저별 이벤트 타입 가중 합산
+     * GitHub 이벤트는 payload->>'scoreWeight' (파일 수 기반)을 추가 가중치로 사용.
+     * scoreWeight 없는 이벤트는 1.0으로 fallback.
+     */
+    @Query(value = """
+        SELECT a.user_id,
+               a.event_type,
+               SUM(COALESCE(CAST(a.payload->>'scoreWeight' AS FLOAT), 1.0) * a.trust_level)
+        FROM activity_logs a
+        WHERE a.project_id = :projectId
+        GROUP BY a.user_id, a.event_type
+        """, nativeQuery = true)
     List<Object[]> countByProjectGroupByUserAndType(@Param("projectId") Long projectId);
+
+    /** 특정 이벤트 타입만 조회 (커밋 품질 분석용) */
+    List<ActivityLog> findByProjectIdAndEventTypeOrderByCreatedAtDesc(
+            Long projectId, ActivityLog.EventType eventType, Pageable pageable);
+
+    /** 벼락치기 감지: 특정 유저의 전체 이벤트 수 */
+    long countByProjectIdAndUserId(Long projectId, Long userId);
+
+    /** 벼락치기 감지: 특정 유저의 최근 N일 이벤트 수 */
+    long countByProjectIdAndUserIdAndCreatedAtAfter(Long projectId, Long userId, java.time.Instant since);
 
     /** 특정 유저의 최근 활동 여부 (N일 이내) */
     boolean existsByProjectIdAndUserIdAndCreatedAtAfter(

@@ -8,9 +8,11 @@ import com.blackbox.domain.project.repository.ProjectRepository;
 import com.blackbox.domain.score.dto.ScoreDto;
 import com.blackbox.domain.score.entity.Alert;
 import com.blackbox.domain.score.entity.ContributionScore;
+import com.blackbox.domain.score.entity.ProjectAlertConfig;
 import com.blackbox.domain.score.entity.ProjectWeight;
 import com.blackbox.domain.score.repository.AlertRepository;
 import com.blackbox.domain.score.repository.ContributionScoreRepository;
+import com.blackbox.domain.score.repository.ProjectAlertConfigRepository;
 import com.blackbox.domain.score.repository.ProjectWeightRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -62,7 +64,6 @@ public class ScoreEngine {
     );
 
     private static final double NORMALIZED_CAP = 150.0;
-    private static final double INACTIVITY_DAYS = 14.0;
 
     private final ActivityLogRepository activityLogRepository;
     private final ContributionScoreRepository scoreRepository;
@@ -70,6 +71,7 @@ public class ScoreEngine {
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final ProjectWeightRepository weightRepository;
+    private final ProjectAlertConfigRepository alertConfigRepository;
 
     /**
      * 특정 프로젝트의 점수를 재계산하고 저장한다.
@@ -92,7 +94,8 @@ public class ScoreEngine {
         Map<Long, Map<EventType, Double>> eventCounts = aggregateEvents(projectId);
 
         // 2. 유저별 raw 점수 계산
-        Map<Long, double[]> rawScores = new HashMap<>(); // [task, meeting, file, extra]
+        // [0]=task [1]=meeting [2]=file [3]=extra(합) [4]=github [5]=notion [6]=google
+        Map<Long, double[]> rawScores = new HashMap<>();
         for (ProjectMember member : members) {
             Long userId = member.getUser().getId();
             Map<EventType, Double> counts = eventCounts.getOrDefault(userId, Collections.emptyMap());
@@ -100,16 +103,19 @@ public class ScoreEngine {
             double taskRaw    = score(counts, EventType.TASK_CREATED, EventType.TASK_UPDATED, EventType.TASK_STATUS_CHANGED);
             double meetingRaw = score(counts, EventType.MEETING_CREATED, EventType.MEETING_CHECKIN);
             double fileRaw    = score(counts, EventType.FILE_UPLOADED);
-            double extraRaw   = score(counts,
+            double githubRaw  = score(counts,
                                       EventType.GITHUB_PUSH, EventType.GITHUB_PR_OPENED,
                                       EventType.GITHUB_PR_MERGED, EventType.GITHUB_ISSUE_OPENED,
-                                      EventType.GITHUB_ISSUE_CLOSED,
+                                      EventType.GITHUB_ISSUE_CLOSED);
+            double notionRaw  = score(counts,
                                       EventType.NOTION_PAGE_CREATED, EventType.NOTION_PAGE_EDITED,
-                                      EventType.NOTION_COMMENT_ADDED,
+                                      EventType.NOTION_COMMENT_ADDED);
+            double googleRaw  = score(counts,
                                       EventType.GDRIVE_FILE_UPLOADED, EventType.GDRIVE_FILE_MODIFIED,
                                       EventType.GSHEET_EDITED, EventType.GFORM_RESPONSE_SUBMITTED);
+            double extraRaw   = githubRaw + notionRaw + googleRaw;
 
-            rawScores.put(userId, new double[]{taskRaw, meetingRaw, fileRaw, extraRaw});
+            rawScores.put(userId, new double[]{taskRaw, meetingRaw, fileRaw, extraRaw, githubRaw, notionRaw, googleRaw});
         }
 
         // 3. 종합 점수 = Σ(항목 × 가중치)
@@ -150,7 +156,8 @@ public class ScoreEngine {
         }
 
         // 6. 경보 분석
-        runAlertEngine(projectId, (com.blackbox.domain.project.entity.Project) project, members, normalized, totals, eventCounts);
+        ProjectAlertConfig cfg = alertConfigRepository.findByProjectId(projectId).orElseGet(ProjectAlertConfig::new);
+        runAlertEngine(projectId, (com.blackbox.domain.project.entity.Project) project, members, normalized, totals, eventCounts, cfg);
 
         log.info("Score calculation done for project {}", projectId);
         return buildReport(projectId, members, rawScores, totals, normalized, teamAvg, now);
@@ -170,23 +177,43 @@ public class ScoreEngine {
     }
 
     /** 저장된 점수 조회 */
-    @Transactional(readOnly = true)
+    @Transactional
     public ScoreDto.ProjectScoreReport getReport(Long projectId) {
         List<ContributionScore> scores = scoreRepository.findByProjectIdOrderByNormalizedScoreDesc(projectId);
         if (scores.isEmpty()) return calculate(projectId);
 
+        // 외부활동 세부 분류는 DB에 저장되지 않으므로 이벤트 집계에서 재계산
+        Map<Long, Map<EventType, Double>> eventCounts = aggregateEvents(projectId);
+
         List<ScoreDto.MemberScore> memberScores = scores.stream()
-                .map(s -> ScoreDto.MemberScore.builder()
-                        .userId(s.getUser().getId())
-                        .userName(s.getUser().getName())
-                        .taskScore(s.getTaskScore())
-                        .meetingScore(s.getMeetingScore())
-                        .fileScore(s.getFileScore())
-                        .totalScore(s.getTotalScore())
-                        .normalizedScore(s.getNormalizedScore())
-                        .grade(toGrade(s.getNormalizedScore()))
-                        .calculatedAt(s.getCalculatedAt())
-                        .build())
+                .map(s -> {
+                    Long uid = s.getUser().getId();
+                    Map<EventType, Double> counts = eventCounts.getOrDefault(uid, Collections.emptyMap());
+                    double githubScore = score(counts,
+                            EventType.GITHUB_PUSH, EventType.GITHUB_PR_OPENED,
+                            EventType.GITHUB_PR_MERGED, EventType.GITHUB_ISSUE_OPENED,
+                            EventType.GITHUB_ISSUE_CLOSED);
+                    double notionScore = score(counts,
+                            EventType.NOTION_PAGE_CREATED, EventType.NOTION_PAGE_EDITED,
+                            EventType.NOTION_COMMENT_ADDED);
+                    double googleScore = score(counts,
+                            EventType.GDRIVE_FILE_UPLOADED, EventType.GDRIVE_FILE_MODIFIED,
+                            EventType.GSHEET_EDITED, EventType.GFORM_RESPONSE_SUBMITTED);
+                    return ScoreDto.MemberScore.builder()
+                            .userId(uid)
+                            .userName(s.getUser().getName())
+                            .taskScore(s.getTaskScore())
+                            .meetingScore(s.getMeetingScore())
+                            .fileScore(s.getFileScore())
+                            .githubScore(githubScore)
+                            .notionScore(notionScore)
+                            .googleScore(googleScore)
+                            .totalScore(s.getTotalScore())
+                            .normalizedScore(s.getNormalizedScore())
+                            .grade(toGrade(s.getNormalizedScore()))
+                            .calculatedAt(s.getCalculatedAt())
+                            .build();
+                })
                 .collect(Collectors.toList());
 
         double avg = scores.stream().mapToDouble(ContributionScore::getTotalScore).average().orElse(0);
@@ -205,39 +232,55 @@ public class ScoreEngine {
                                 List<ProjectMember> members,
                                 Map<Long, Double> normalized,
                                 Map<Long, Double> totals,
-                                Map<Long, Map<EventType, Double>> eventCounts) {
+                                Map<Long, Map<EventType, Double>> eventCounts,
+                                ProjectAlertConfig cfg) {
 
-        // 불균형 감지: max - min > 40%p
+        // 불균형 감지
         if (members.size() >= 2) {
             double max = normalized.values().stream().mapToDouble(Double::doubleValue).max().orElse(0);
             double min = normalized.values().stream().mapToDouble(Double::doubleValue).min().orElse(0);
-            if ((max - min) > 40.0 && !alertExists(projectId, Alert.AlertType.IMBALANCE)) {
+            if ((max - min) > cfg.getImbalancePct() && !alertExists(projectId, Alert.AlertType.IMBALANCE)) {
                 saveAlert(proj, Alert.AlertType.IMBALANCE, "WARNING",
-                        String.format("팀 내 기여도 편차가 %.1f%%p 로 40%%p를 초과합니다.", max - min));
+                        String.format("팀 내 기여도 편차가 %.1f%%p로 임계값(%.0f%%p)을 초과합니다.", max - min, cfg.getImbalancePct()));
             }
         }
 
-        // 과부하 감지: 1인 총점이 팀 전체의 60% 이상
+        // 과부하 감지
         double totalSum = totals.values().stream().mapToDouble(Double::doubleValue).sum();
         if (totalSum > 0) {
             totals.forEach((userId, total) -> {
                 double ratio = total / totalSum;
-                if (ratio >= 0.6 && !alertExists(projectId, Alert.AlertType.OVERLOAD)) {
+                if (ratio >= cfg.getOverloadRatio() && !alertExists(projectId, Alert.AlertType.OVERLOAD)) {
                     saveAlert(proj, Alert.AlertType.OVERLOAD, "CRITICAL",
                             String.format("한 멤버가 팀 전체 활동의 %.0f%%를 담당하고 있습니다.", ratio * 100));
                 }
             });
         }
 
-        // 이탈 감지: 14일 이상 무활동
-        Instant twoWeeksAgo = Instant.now().minus((long) INACTIVITY_DAYS, ChronoUnit.DAYS);
+        // 이탈 감지
+        Instant inactivitySince = Instant.now().minus(cfg.getInactivityDays(), ChronoUnit.DAYS);
         for (ProjectMember member : members) {
             Long userId = member.getUser().getId();
             boolean active = activityLogRepository.existsByProjectIdAndUserIdAndCreatedAtAfter(
-                    projectId, userId, twoWeeksAgo);
+                    projectId, userId, inactivitySince);
             if (!active && !alertExists(projectId, Alert.AlertType.INACTIVITY)) {
                 saveAlert(proj, Alert.AlertType.INACTIVITY, "WARNING",
-                        String.format("멤버 '%s'가 14일 이상 활동이 없습니다.", member.getUser().getName()));
+                        String.format("멤버 '%s'가 %d일 이상 활동이 없습니다.", member.getUser().getName(), cfg.getInactivityDays()));
+            }
+        }
+
+        // 벼락치기 감지: 최근 N일 활동이 전체의 crammingRatio 이상
+        Instant crammingSince = Instant.now().minus(cfg.getCrammingDays(), ChronoUnit.DAYS);
+        for (ProjectMember member : members) {
+            Long userId = member.getUser().getId();
+            long total  = activityLogRepository.countByProjectIdAndUserId(projectId, userId);
+            if (total < cfg.getMinEvents()) continue;
+            long recent = activityLogRepository.countByProjectIdAndUserIdAndCreatedAtAfter(projectId, userId, crammingSince);
+            double ratio = (double) recent / total;
+            if (ratio >= cfg.getCrammingRatio() && !alertExists(projectId, Alert.AlertType.CRAMMING)) {
+                saveAlert(proj, Alert.AlertType.CRAMMING, "WARNING",
+                        String.format("멤버 '%s'의 활동 중 %.0f%%가 최근 %d일에 집중되어 있습니다.",
+                                member.getUser().getName(), ratio * 100, cfg.getCrammingDays()));
             }
         }
     }
@@ -249,9 +292,14 @@ public class ScoreEngine {
         List<Object[]> rows = activityLogRepository.countByProjectGroupByUserAndType(projectId);
         Map<Long, Map<EventType, Double>> result = new HashMap<>();
         for (Object[] row : rows) {
-            Long userId = (Long) row[0];
-            EventType type = (EventType) row[1];
-            // SUM(trustLevel) — DB 반환값이 Double 또는 Long일 수 있음
+            // native query → user_id: Number, event_type: String, sum: Number
+            Long userId = ((Number) row[0]).longValue();
+            EventType type;
+            try {
+                type = EventType.valueOf((String) row[1]);
+            } catch (IllegalArgumentException e) {
+                continue; // 알 수 없는 이벤트 타입은 무시
+            }
             double weightedCount = ((Number) row[2]).doubleValue();
             result.computeIfAbsent(userId, k -> new HashMap<>()).put(type, weightedCount);
         }
@@ -286,7 +334,7 @@ public class ScoreEngine {
         List<ScoreDto.MemberScore> memberScores = members.stream()
                 .map(m -> {
                     Long uid = m.getUser().getId();
-                    double[] r = rawScores.getOrDefault(uid, new double[4]);
+                    double[] r = rawScores.getOrDefault(uid, new double[7]);
                     double norm = normalized.getOrDefault(uid, 0.0);
                     return ScoreDto.MemberScore.builder()
                             .userId(uid)
@@ -294,6 +342,9 @@ public class ScoreEngine {
                             .taskScore(r[0])
                             .meetingScore(r[1])
                             .fileScore(r[2])
+                            .githubScore(r.length > 4 ? r[4] : 0)
+                            .notionScore(r.length > 5 ? r[5] : 0)
+                            .googleScore(r.length > 6 ? r[6] : 0)
                             .totalScore(totals.getOrDefault(uid, 0.0))
                             .normalizedScore(norm)
                             .grade(toGrade(norm))

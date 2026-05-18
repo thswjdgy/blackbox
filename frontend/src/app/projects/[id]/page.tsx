@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/api';
+import { useAuthStore } from '@/store/authStore';
 
 interface Member {
   userId: number;
@@ -57,10 +58,30 @@ const GRADE_COLOR: Record<string, string> = {
   F: 'text-red-400',
 };
 
+const AVATAR_COLORS = [
+  'bg-rose-400',
+  'bg-pink-400',
+  'bg-fuchsia-400',
+  'bg-violet-400',
+  'bg-indigo-400',
+  'bg-blue-400',
+  'bg-sky-400',
+  'bg-cyan-400',
+  'bg-teal-400',
+  'bg-emerald-400',
+  'bg-green-400',
+  'bg-lime-400',
+  'bg-yellow-400',
+  'bg-orange-400',
+];
+
+const getAvatarColor = (userId: number) => AVATAR_COLORS[userId % AVATAR_COLORS.length];
+
 export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
   const projectId = params.id as string;
+  const { user } = useAuthStore();
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [taskSummary, setTaskSummary] = useState<TaskSummary>({ todo: 0, inProgress: 0, done: 0, total: 0 });
@@ -68,6 +89,8 @@ export default function ProjectDetailPage() {
   const [scores, setScores] = useState<MemberScore[]>([]);
   const [loading, setLoading] = useState(true);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [menuOpenId, setMenuOpenId] = useState<number | null>(null);
 
   const fetchAll = useCallback(async () => {
     try {
@@ -105,11 +128,42 @@ export default function ProjectDetailPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  useEffect(() => {
+    if (menuOpenId === null) return;
+    const close = () => setMenuOpenId(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [menuOpenId]);
+
   const handleCopyCode = async () => {
     if (!project) return;
     await navigator.clipboard.writeText(project.inviteCode);
     setCopySuccess(true);
     setTimeout(() => setCopySuccess(false), 2000);
+  };
+
+  const myProjectRole = project?.members.find(m => m.userId === user?.id)?.projectRole ?? '';
+  const canManage = myProjectRole === 'LEADER' || user?.role === 'PROFESSOR' || user?.role === 'TA';
+
+  const handleRoleChange = async (targetId: number, currentRole: string) => {
+    const next = currentRole === 'LEADER' ? 'MEMBER' : 'LEADER';
+    if (!confirm(`역할을 ${next === 'LEADER' ? '팀장' : '팀원'}으로 변경하시겠습니까?`)) return;
+    try {
+      await api.patch(`/projects/${projectId}/members/${targetId}/role`, { projectRole: next });
+      setProject(p => p ? { ...p, members: p.members.map(m => m.userId === targetId ? { ...m, projectRole: next } : m) } : p);
+    } catch (e: any) {
+      alert(e.response?.data?.message ?? '역할 변경 실패');
+    } finally { setMenuOpenId(null); }
+  };
+
+  const handleKick = async (targetId: number, name: string) => {
+    if (!confirm(`'${name}'님을 프로젝트에서 강퇴하시겠습니까?`)) return;
+    try {
+      await api.delete(`/projects/${projectId}/members/${targetId}`);
+      setProject(p => p ? { ...p, members: p.members.filter(m => m.userId !== targetId) } : p);
+    } catch (e: any) {
+      alert(e.response?.data?.message ?? '강퇴 실패');
+    } finally { setMenuOpenId(null); }
   };
 
   if (loading) return <div className="p-8 text-slate-400">데이터를 불러오는 중...</div>;
@@ -148,7 +202,14 @@ export default function ProjectDetailPage() {
               </p>
             )}
           </div>
-          <div className="shrink-0 bg-slate-800/60 backdrop-blur-sm p-5 rounded-2xl border border-slate-700/50 shadow-xl group">
+          <div className="flex flex-col gap-3 shrink-0">
+            <button
+              onClick={() => setEditOpen(true)}
+              className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 transition-all"
+            >
+              ✏️ 프로젝트 편집
+            </button>
+          <div className="bg-slate-800/60 backdrop-blur-sm p-5 rounded-2xl border border-slate-700/50 shadow-xl group">
             <p className="text-[10px] uppercase font-bold text-slate-500 mb-2 tracking-widest">초대 코드</p>
             <div className="flex items-center gap-3">
               <span className="font-mono text-2xl font-black text-violet-400 tracking-tighter">{project.inviteCode}</span>
@@ -160,8 +221,18 @@ export default function ProjectDetailPage() {
               </button>
             </div>
           </div>
+          </div>
         </div>
       </div>
+
+      {/* Edit Modal */}
+      {editOpen && project && (
+        <EditProjectModal
+          project={project}
+          onClose={() => setEditOpen(false)}
+          onSaved={(updated) => { setProject(updated); setEditOpen(false); }}
+        />
+      )}
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -245,19 +316,54 @@ export default function ProjectDetailPage() {
             <ul className="space-y-3">
               {project.members.map(member => {
                 const score = scores.find(s => s.userId === member.userId);
+                const isSelf = member.userId === user?.id;
+                const isMenuOpen = menuOpenId === member.userId;
                 return (
-                  <li key={member.userId} className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 border border-slate-700 flex items-center justify-center text-sm font-bold text-white shrink-0">
+                  <li key={member.userId} className="flex items-center gap-3 relative">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold shrink-0
+                      ${member.projectRole === 'LEADER'
+                        ? 'bg-gradient-to-br from-amber-500 to-orange-600 border-2 border-amber-400/60 shadow-lg shadow-amber-900/30 text-white'
+                        : `${getAvatarColor(member.userId)} text-black`}`}>
                       {member.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white truncate">{member.name}</p>
-                      <p className="text-[10px] text-slate-500 uppercase tracking-wider">{member.projectRole}</p>
+                      <p className="text-sm font-semibold text-white truncate flex items-center gap-1.5">
+                        {member.name}
+                        {isSelf && <span className="text-[10px] text-slate-600">(나)</span>}
+                      </p>
+                      <p className={`text-[10px] uppercase tracking-wider font-semibold
+                        ${member.projectRole === 'LEADER' ? 'text-amber-400' : 'text-slate-500'}`}>
+                        {member.projectRole === 'LEADER' ? '👑 팀장' : '팀원'}
+                      </p>
                     </div>
                     {score && (
                       <span className={`text-sm font-black shrink-0 ${GRADE_COLOR[score.grade] ?? 'text-slate-400'}`}>
                         {score.grade}
                       </span>
+                    )}
+                    {canManage && !isSelf && (
+                      <div className="relative">
+                        <button
+                          onClick={e => { e.stopPropagation(); setMenuOpenId(isMenuOpen ? null : member.userId); }}
+                          className="w-6 h-6 flex items-center justify-center text-slate-600 hover:text-slate-300 rounded transition-colors text-base leading-none"
+                        >⋯</button>
+                        {isMenuOpen && (
+                          <div className="absolute right-0 top-8 z-20 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl py-1 w-36">
+                            <button
+                              onClick={() => handleRoleChange(member.userId, member.projectRole)}
+                              className="w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+                            >
+                              {member.projectRole === 'LEADER' ? '👤 팀원으로 변경' : '👑 팀장으로 변경'}
+                            </button>
+                            <button
+                              onClick={() => handleKick(member.userId, member.name)}
+                              className="w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
+                            >
+                              🚫 강퇴
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </li>
                 );
@@ -328,5 +434,100 @@ function NavCard({ href, title, desc, icon, color }: { href: string; title: stri
       <h3 className="text-sm font-bold text-white mb-1">{title}</h3>
       <p className="text-xs text-slate-500 leading-relaxed">{desc}</p>
     </Link>
+  );
+}
+
+function EditProjectModal({
+  project,
+  onClose,
+  onSaved,
+}: {
+  project: ProjectDetail;
+  onClose: () => void;
+  onSaved: (updated: ProjectDetail) => void;
+}) {
+  const [form, setForm] = useState({
+    name:        project.name        ?? '',
+    description: project.description ?? '',
+    courseName:  project.courseName  ?? '',
+    semester:    project.semester    ?? '',
+    startDate:   project.startDate   ?? '',
+    endDate:     project.endDate     ?? '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState('');
+
+  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm(p => ({ ...p, [key]: e.target.value }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const res = await api.patch(`/projects/${project.id}`, {
+        name:        form.name        || null,
+        description: form.description || null,
+        courseName:  form.courseName  || null,
+        semester:    form.semester    || null,
+        startDate:   form.startDate   || null,
+        endDate:     form.endDate     || null,
+      });
+      onSaved(res.data);
+    } catch (err: any) {
+      setError(err.response?.data?.message ?? '저장 실패');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputCls = 'w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-violet-500 transition-colors';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+          <h2 className="font-bold text-white">프로젝트 편집</h2>
+          <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors text-xl leading-none">×</button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1.5">프로젝트명 *</label>
+            <input className={inputCls} required value={form.name} onChange={set('name')} placeholder="팀 캡스톤 프로젝트" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1.5">설명</label>
+            <textarea className={`${inputCls} resize-none`} rows={2} value={form.description} onChange={set('description')} placeholder="프로젝트 소개" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1.5">강의명</label>
+              <input className={inputCls} value={form.courseName} onChange={set('courseName')} placeholder="소프트웨어공학" />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1.5">학기</label>
+              <input className={inputCls} value={form.semester} onChange={set('semester')} placeholder="2025-1" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1.5">시작일</label>
+              <input type="date" className={inputCls} value={form.startDate} onChange={set('startDate')} />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1.5">종료일</label>
+              <input type="date" className={inputCls} value={form.endDate} onChange={set('endDate')} />
+            </div>
+          </div>
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={onClose} className="flex-1 py-2 rounded-xl text-sm font-semibold bg-slate-800 text-slate-400 hover:text-white transition-colors">취소</button>
+            <button type="submit" disabled={saving} className="flex-1 py-2 rounded-xl text-sm font-bold bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-50 transition-colors">
+              {saving ? '저장 중...' : '저장'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

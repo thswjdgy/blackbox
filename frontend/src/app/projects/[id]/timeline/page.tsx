@@ -154,29 +154,48 @@ export default function TimelinePage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [nextPage, setNextPage] = useState(1);
 
   const [sourceFilter, setSourceFilter] = useState<'ALL' | 'PLATFORM' | 'GITHUB' | 'NOTION' | 'GOOGLE_DRIVE'>('ALL');
   const [userFilter,   setUserFilter]   = useState<string>('');
-  const [limit] = useState(50);
+  const LIMIT = 50;
 
-  const fetchLogs = useCallback(async (reset = false) => {
-    if (reset) setLoading(true); else setLoadingMore(true);
+  const fetchPage = useCallback(async (pageNum: number): Promise<ActivityLog[]> => {
+    const qs = new URLSearchParams({ source: sourceFilter, limit: String(LIMIT), page: String(pageNum) });
+    if (userFilter) qs.set('userId', userFilter);
+    const res = await api.get(`/projects/${projectId}/activities?${qs}`);
+    return res.data as ActivityLog[];
+  }, [projectId, sourceFilter, userFilter]);
 
-    const params = new URLSearchParams({ source: sourceFilter, limit: String(limit) });
-    if (userFilter) params.set('userId', userFilter);
+  // 필터/마운트 시 초기 로드
+  useEffect(() => {
+    setLoading(true);
+    setNextPage(1);
+    fetchPage(0)
+      .then(data => { setLogs(data); setHasMore(data.length === LIMIT); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [projectId, sourceFilter, userFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleLoadMore = async () => {
+    setLoadingMore(true);
     try {
-      const res = await api.get(`/projects/${projectId}/activities?${params}`);
-      const data: ActivityLog[] = res.data;
-      setLogs(data);
-      setHasMore(data.length === limit);
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, [projectId, sourceFilter, userFilter, limit]);
+      const data = await fetchPage(nextPage);
+      setLogs(prev => [...prev, ...data]);
+      setHasMore(data.length === LIMIT);
+      setNextPage(p => p + 1);
+    } catch { /* ignore */ }
+    finally { setLoadingMore(false); }
+  };
+
+  const handleRefresh = () => {
+    setLoading(true);
+    setNextPage(1);
+    fetchPage(0)
+      .then(data => { setLogs(data); setHasMore(data.length === LIMIT); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
     api.get(`/projects/${projectId}/members`).then(res => {
@@ -188,8 +207,6 @@ export default function TimelinePage() {
       );
     }).catch(() => {});
   }, [projectId]);
-
-  useEffect(() => { fetchLogs(true); }, [fetchLogs]);
 
   /* 날짜별 그룹핑 */
   const grouped: { key: string; label: string; items: ActivityLog[] }[] = [];
@@ -218,7 +235,7 @@ export default function TimelinePage() {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-white">활동 타임라인</h2>
           <button
-            onClick={() => fetchLogs(true)}
+            onClick={handleRefresh}
             className="text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800"
           >
             새로고침
@@ -363,7 +380,7 @@ export default function TimelinePage() {
             {hasMore && (
               <div className="text-center pt-2">
                 <button
-                  onClick={() => fetchLogs(false)}
+                  onClick={handleLoadMore}
                   disabled={loadingMore}
                   className="text-xs text-slate-400 hover:text-white transition-colors px-4 py-2 rounded-lg hover:bg-slate-800 disabled:opacity-50"
                 >

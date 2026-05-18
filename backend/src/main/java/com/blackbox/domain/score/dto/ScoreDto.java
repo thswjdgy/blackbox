@@ -17,6 +17,9 @@ public class ScoreDto {
         private double taskScore;
         private double meetingScore;
         private double fileScore;
+        private double githubScore;
+        private double notionScore;
+        private double googleScore;
         private double totalScore;
         private double normalizedScore;  // 100 기준, 150 상한
         private String grade;            // A/B/C/D/F

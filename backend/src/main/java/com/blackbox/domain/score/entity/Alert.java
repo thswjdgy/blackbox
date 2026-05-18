@@ -48,7 +48,8 @@ public class Alert {
 
     public enum AlertType {
         IMBALANCE,   // 기여도 불균형
-        INACTIVITY,  // 이탈 (2주 무활동)
-        OVERLOAD     // 과부하 (1인 60% 이상)
+        INACTIVITY,  // 이탈 (N일 무활동)
+        OVERLOAD,    // 과부하 (1인 N% 이상)
+        CRAMMING     // 벼락치기 (마감 직전 집중 활동)
     }
 }

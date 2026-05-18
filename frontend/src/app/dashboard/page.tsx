@@ -15,6 +15,10 @@ interface Project {
   active: boolean;
   memberCount: number;
   createdAt: string;
+  courseName?: string;
+  semester?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 export default function DashboardPage() {
@@ -142,20 +146,39 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {projects.map((p) => (
               <Link key={p.id} href={`/projects/${p.id}`}>
-                <div className="group bg-slate-800/60 hover:bg-slate-800/90 border border-slate-700/50 hover:border-violet-500/50 rounded-2xl p-6 transition-all cursor-pointer shadow-lg hover:shadow-violet-900/20 hover:-translate-y-0.5">
+                <div className="group bg-slate-800/60 hover:bg-slate-800/90 border border-slate-700/50 hover:border-violet-500/50 rounded-2xl p-6 transition-all cursor-pointer shadow-lg hover:shadow-violet-900/20 hover:-translate-y-0.5 flex flex-col h-full min-h-[180px]">
                   <div className="flex items-start justify-between mb-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-indigo-600/20 flex items-center justify-center text-violet-400 font-bold text-lg border border-violet-500/20">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-indigo-600/20 flex items-center justify-center text-violet-400 font-bold text-lg border border-violet-500/20 shrink-0">
                       {p.name.charAt(0).toUpperCase()}
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${p.active ? 'bg-green-900/40 text-green-400' : 'bg-slate-700 text-slate-400'}`}>
-                      {p.active ? '진행중' : '종료'}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                      {p.semester && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-900/40 text-violet-300 border border-violet-500/20 font-semibold">
+                          {p.semester}
+                        </span>
+                      )}
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${p.active ? 'bg-green-900/40 text-green-400' : 'bg-slate-700 text-slate-400'}`}>
+                        {p.active ? '진행중' : '종료'}
+                      </span>
+                    </div>
                   </div>
-                  <h3 className="font-semibold text-white group-hover:text-violet-300 transition-colors mb-1">{p.name}</h3>
-                  <p className="text-slate-400 text-sm line-clamp-2 mb-4">{p.description ?? '설명 없음'}</p>
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span>👥 {p.memberCount}명</span>
-                    <span className="font-mono bg-slate-900/60 px-2 py-0.5 rounded">{p.inviteCode}</span>
+
+                  <h3 className="font-semibold text-white group-hover:text-violet-300 transition-colors mb-0.5">{p.name}</h3>
+                  {p.courseName && (
+                    <p className="text-xs text-slate-500 mb-1">{p.courseName}</p>
+                  )}
+                  <p className="text-slate-400 text-sm line-clamp-2 mb-auto">{p.description || '설명 없음'}</p>
+
+                  <div className="mt-4 pt-3 border-t border-slate-700/50 flex items-center justify-between text-xs text-slate-500">
+                    <div className="flex items-center gap-3">
+                      <span>👥 {p.memberCount}명</span>
+                      {(p.startDate || p.endDate) && (
+                        <span className="text-slate-600">
+                          {p.startDate ? p.startDate.slice(0, 7) : '?'} ~ {p.endDate ? p.endDate.slice(0, 7) : '?'}
+                        </span>
+                      )}
+                    </div>
+                    <span className="font-mono bg-slate-900/60 px-2 py-0.5 rounded text-slate-600">{p.inviteCode}</span>
                   </div>
                 </div>
               </Link>

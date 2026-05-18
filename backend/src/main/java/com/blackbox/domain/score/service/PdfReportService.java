@@ -31,13 +31,24 @@ public class PdfReportService {
     private static final Color C_LIGHT = new Color(0xF0, 0xF4, 0xF8);
     private static final Color C_WHITE = Color.WHITE;
 
+    private static final String KOREAN_FONT_PATH = "/app/fonts/NanumGothic.ttf";
+
+    private BaseFont loadBaseFont() throws Exception {
+        java.io.File fontFile = new java.io.File(KOREAN_FONT_PATH);
+        if (fontFile.exists()) {
+            return BaseFont.createFont(KOREAN_FONT_PATH, BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+        }
+        // 로컬 개발 환경 fallback (한글 깨짐 허용)
+        return BaseFont.createFont(BaseFont.HELVETICA, BaseFont.CP1252, BaseFont.NOT_EMBEDDED);
+    }
+
     public byte[] generate(Long projectId, ScoreDto.ProjectScoreReport report) {
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             Document doc = new Document(PageSize.A4, 50, 50, 60, 60);
             PdfWriter.getInstance(doc, baos);
             doc.open();
 
-            BaseFont bf = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.CP1252, BaseFont.NOT_EMBEDDED);
+            BaseFont bf = loadBaseFont();
             Font titleFont  = new Font(bf, 20, Font.BOLD, C_DARK);
             Font headerFont = new Font(bf, 11, Font.BOLD, C_WHITE);
             Font bodyFont   = new Font(bf, 10, Font.NORMAL, C_DARK);
@@ -65,11 +76,11 @@ public class PdfReportService {
             doc.add(summary);
 
             // 멤버별 점수 테이블
-            PdfPTable table = new PdfPTable(new float[]{3, 2, 2, 2, 2, 2, 1.5f});
+            PdfPTable table = new PdfPTable(new float[]{2.5f, 1.5f, 1.5f, 1.5f, 1.5f, 1.5f, 1.5f, 1.5f, 1.2f});
             table.setWidthPercentage(100);
             table.setSpacingAfter(30);
 
-            for (String h : new String[]{"Name", "Task", "Meeting", "File", "Total", "Normalized", "Grade"}) {
+            for (String h : new String[]{"Name", "Task", "Meeting", "File", "GitHub", "Notion", "Google", "Normalized", "Grade"}) {
                 PdfPCell cell = new PdfPCell(new Phrase(h, headerFont));
                 cell.setBackgroundColor(C_DARK);
                 cell.setHorizontalAlignment(Element.ALIGN_CENTER);
@@ -85,7 +96,9 @@ public class PdfReportService {
                 addCell(table, String.format("%.1f", m.getTaskScore()),           bodyFont, bg, Element.ALIGN_CENTER);
                 addCell(table, String.format("%.1f", m.getMeetingScore()),        bodyFont, bg, Element.ALIGN_CENTER);
                 addCell(table, String.format("%.1f", m.getFileScore()),           bodyFont, bg, Element.ALIGN_CENTER);
-                addCell(table, String.format("%.1f", m.getTotalScore()),          bodyFont, bg, Element.ALIGN_CENTER);
+                addCell(table, String.format("%.1f", m.getGithubScore()),         bodyFont, bg, Element.ALIGN_CENTER);
+                addCell(table, String.format("%.1f", m.getNotionScore()),         bodyFont, bg, Element.ALIGN_CENTER);
+                addCell(table, String.format("%.1f", m.getGoogleScore()),         bodyFont, bg, Element.ALIGN_CENTER);
                 addCell(table, String.format("%.1f%%", m.getNormalizedScore()),   bodyFont, bg, Element.ALIGN_CENTER);
                 addCell(table, m.getGrade(),                                      bodyFont, bg, Element.ALIGN_CENTER);
                 alt = !alt;

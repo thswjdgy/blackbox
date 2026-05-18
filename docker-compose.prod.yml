@@ -34,6 +34,11 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       FILE_UPLOAD_DIR: /data/uploads
       SPRING_PROFILES_ACTIVE: prod
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-https://localhost}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
     volumes:
       - uploads:/data/uploads
     expose:

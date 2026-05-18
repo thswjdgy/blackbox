@@ -2,17 +2,23 @@ package com.blackbox.domain.ai.service;
 
 import com.blackbox.domain.activity.entity.ActivityLog;
 import com.blackbox.domain.activity.repository.ActivityLogRepository;
+import com.blackbox.domain.ai.entity.AiAnalysisResult;
+import com.blackbox.domain.ai.repository.AiAnalysisResultRepository;
 import com.blackbox.domain.project.entity.ProjectMember;
 import com.blackbox.domain.project.repository.ProjectMemberRepository;
 import com.blackbox.domain.score.dto.ScoreDto;
 import com.blackbox.domain.score.service.ScoreEngine;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AiAnalyzerService {
@@ -21,6 +27,100 @@ public class AiAnalyzerService {
     private final ProjectMemberRepository memberRepository;
     private final ScoreEngine scoreEngine;
     private final OpenAiApiService openAiApiService;
+    private final AiAnalysisResultRepository analysisResultRepository;
+    private final ObjectMapper objectMapper;
+
+    /** 커밋 메시지 품질 분석 — 최근 N건 GITHUB_PUSH 이벤트 대상 */
+    public List<Map<String, Object>> analyzeCommitQuality(Long projectId, int limit) {
+        limit = Math.min(limit, 20);
+        List<ActivityLog> pushes = activityLogRepository
+                .findByProjectIdAndEventTypeOrderByCreatedAtDesc(
+                        projectId, ActivityLog.EventType.GITHUB_PUSH,
+                        org.springframework.data.domain.PageRequest.of(0, limit));
+
+        if (pushes.isEmpty()) {
+            return List.of();
+        }
+
+        // 커밋 목록 추출
+        List<Map<String, Object>> commits = pushes.stream().map(log -> {
+            Map<String, Object> payload = log.getPayload() != null ? log.getPayload() : Map.of();
+            Map<String, Object> item = new HashMap<>();
+            item.put("sha",     String.valueOf(payload.getOrDefault("sha", "")).substring(0, Math.min(7, String.valueOf(payload.getOrDefault("sha", "")).length())));
+            item.put("message", String.valueOf(payload.getOrDefault("message", "(메시지 없음)")));
+            item.put("author",  log.getUser().getName());
+            return item;
+        }).collect(java.util.stream.Collectors.toList());
+
+        // 프롬프트 구성
+        StringBuilder sb = new StringBuilder();
+        sb.append("아래 Git 커밋 메시지들의 품질을 평가해주세요. 각 커밋에 대해 1-5점 점수와 한 줄 피드백을 한국어로 작성하세요.\n\n");
+        sb.append("평가 기준: 1=매우 불량(\"fix\", \"update\" 같은 모호한 메시지), 3=보통, 5=우수(Conventional Commit 형식, 명확한 변경 범위)\n\n");
+        sb.append("커밋 목록:\n");
+        for (int i = 0; i < commits.size(); i++) {
+            Map<String, Object> c = commits.get(i);
+            sb.append(i + 1).append(". [").append(c.get("sha")).append("] ")
+              .append(c.get("author")).append(": ").append(c.get("message")).append("\n");
+        }
+        sb.append("\n응답 형식 (반드시 지킬 것):\n");
+        sb.append("1. 점수: N/5 | 평가: (한 줄 피드백)\n");
+        sb.append("2. 점수: N/5 | 평가: (한 줄 피드백)\n");
+        sb.append("...\n");
+
+        String aiResponse = openAiApiService.completeWithTokens(sb.toString(), 600);
+
+        // 응답 파싱: "N. 점수: X/5 | 평가: ..." 형식
+        List<Map<String, Object>> results = new ArrayList<>();
+        String[] lines = aiResponse.split("\n");
+        int idx = 0;
+        for (String line : lines) {
+            line = line.trim();
+            if (line.isEmpty() || idx >= commits.size()) continue;
+            // "1. 점수: 4/5 | 평가: ..." 형식 파싱
+            if (line.matches("^\\d+\\..*점수.*")) {
+                int score = 3; // 기본값
+                String feedback = line;
+                try {
+                    java.util.regex.Matcher m = java.util.regex.Pattern
+                            .compile("점수[:\\s]+(\\d)/5").matcher(line);
+                    if (m.find()) score = Integer.parseInt(m.group(1));
+                    int pipeIdx = line.indexOf("평가:");
+                    if (pipeIdx >= 0) feedback = line.substring(pipeIdx + 3).trim();
+                } catch (Exception ignored) {}
+                Map<String, Object> commit = commits.get(idx);
+                results.add(Map.of(
+                        "sha",      commit.get("sha"),
+                        "message",  commit.get("message"),
+                        "author",   commit.get("author"),
+                        "score",    score,
+                        "feedback", feedback
+                ));
+                idx++;
+            }
+        }
+        // 파싱 실패 시 commits 그대로 반환 (score=0)
+        if (results.isEmpty()) {
+            for (Map<String, Object> c : commits) {
+                results.add(new HashMap<>(Map.of(
+                        "sha", c.get("sha"), "message", c.get("message"),
+                        "author", c.get("author"), "score", 0, "feedback", aiResponse
+                )));
+            }
+        }
+
+        // 결과 DB 저장
+        try {
+            String json = objectMapper.writeValueAsString(results);
+            analysisResultRepository.save(AiAnalysisResult.builder()
+                    .projectId(projectId)
+                    .analysisType(AiAnalysisResult.AnalysisType.COMMIT)
+                    .result(json)
+                    .build());
+        } catch (Exception e) {
+            log.warn("커밋 분석 결과 저장 실패: {}", e.getMessage());
+        }
+        return results;
+    }
 
     public String analyze(Long projectId) {
         // 팀원 정보
@@ -52,9 +152,38 @@ public class AiAnalyzerService {
             report = null;
         }
 
-        // 프롬프트 생성
+        // 프롬프트 생성 및 API 호출
         String prompt = buildPrompt(nameMap, memberEvents, report, logs.size());
-        return openAiApiService.completeWithTokens(prompt, 800);
+        String aiResult = openAiApiService.completeWithTokens(prompt, 800);
+
+        // 결과 DB 저장
+        analysisResultRepository.save(AiAnalysisResult.builder()
+                .projectId(projectId)
+                .analysisType(AiAnalysisResult.AnalysisType.TEAM)
+                .result(aiResult)
+                .build());
+
+        return aiResult;
+    }
+
+    /** 마지막 팀 분석 결과 조회 (캐시) */
+    public Optional<AiAnalysisResult> getLatestTeamAnalysis(Long projectId) {
+        return analysisResultRepository.findTopByProjectIdAndAnalysisTypeOrderByCreatedAtDesc(
+                projectId, AiAnalysisResult.AnalysisType.TEAM);
+    }
+
+    /** 마지막 커밋 품질 분석 엔티티 조회 */
+    public Optional<AiAnalysisResult> getLatestCommitResult(Long projectId) {
+        return analysisResultRepository.findTopByProjectIdAndAnalysisTypeOrderByCreatedAtDesc(
+                projectId, AiAnalysisResult.AnalysisType.COMMIT);
+    }
+
+    public List<Map<String, Object>> parseCommitResult(String json) {
+        try {
+            return objectMapper.readValue(json, new TypeReference<>() {});
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
     }
 
     private String buildPrompt(

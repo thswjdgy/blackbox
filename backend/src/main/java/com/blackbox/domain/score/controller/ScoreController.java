@@ -4,9 +4,11 @@ import com.blackbox.domain.project.repository.ProjectRepository;
 import com.blackbox.domain.score.dto.ScoreDto;
 import com.blackbox.domain.score.dto.WeightDto;
 import com.blackbox.domain.score.entity.Alert;
+import com.blackbox.domain.score.entity.ProjectAlertConfig;
 import com.blackbox.domain.score.entity.ProjectWeight;
 import com.blackbox.domain.score.entity.WeightHistory;
 import com.blackbox.domain.score.repository.AlertRepository;
+import com.blackbox.domain.score.repository.ProjectAlertConfigRepository;
 import com.blackbox.domain.score.repository.ProjectWeightRepository;
 import com.blackbox.domain.score.repository.WeightHistoryRepository;
 import com.blackbox.domain.score.service.PdfReportService;
@@ -34,6 +36,7 @@ public class ScoreController {
     private final ProjectWeightRepository weightRepository;
     private final WeightHistoryRepository weightHistoryRepository;
     private final ProjectRepository projectRepository;
+    private final ProjectAlertConfigRepository alertConfigRepository;
 
     /** 기여도 리포트 조회 */
     @GetMapping("/scores")
@@ -66,6 +69,15 @@ public class ScoreController {
                 .findByProjectIdAndIsResolvedFalseOrderByCreatedAtDesc(projectId)
                 .stream().map(this::toAlertResponse).collect(Collectors.toList());
         return ResponseEntity.ok(alerts);
+    }
+
+    /** 해결된 경보 이력 */
+    @GetMapping("/alerts/history")
+    public ResponseEntity<List<ScoreDto.AlertResponse>> getAlertHistory(@PathVariable Long projectId) {
+        List<ScoreDto.AlertResponse> history = alertRepository
+                .findByProjectIdAndIsResolvedTrueOrderByResolvedAtDesc(projectId)
+                .stream().map(this::toAlertResponse).collect(Collectors.toList());
+        return ResponseEntity.ok(history);
     }
 
     /** 가중치 조회 (없으면 기본값 반환) */
@@ -137,6 +149,39 @@ public class ScoreController {
                 .wExtra(w.getWExtra())
                 .updatedAt(w.getUpdatedAt())
                 .build();
+    }
+
+    /** 경보 임계값 설정 조회 */
+    @GetMapping("/alert-config")
+    public ResponseEntity<java.util.Map<String, Object>> getAlertConfig(@PathVariable Long projectId) {
+        ProjectAlertConfig cfg = alertConfigRepository.findByProjectId(projectId)
+                .orElseGet(ProjectAlertConfig::new);
+        return ResponseEntity.ok(java.util.Map.of(
+                "imbalancePct",   cfg.getImbalancePct(),
+                "overloadRatio",  cfg.getOverloadRatio(),
+                "inactivityDays", cfg.getInactivityDays(),
+                "crammingDays",   cfg.getCrammingDays(),
+                "crammingRatio",  cfg.getCrammingRatio(),
+                "minEvents",      cfg.getMinEvents()
+        ));
+    }
+
+    /** 경보 임계값 설정 저장 */
+    @PutMapping("/alert-config")
+    public ResponseEntity<Void> updateAlertConfig(
+            @PathVariable Long projectId,
+            @RequestBody java.util.Map<String, Object> body) {
+        var project = projectRepository.findById(projectId).orElseThrow();
+        ProjectAlertConfig cfg = alertConfigRepository.findByProjectId(projectId)
+                .orElseGet(() -> ProjectAlertConfig.builder().project(project).build());
+        if (body.containsKey("imbalancePct"))   cfg.setImbalancePct(((Number) body.get("imbalancePct")).doubleValue());
+        if (body.containsKey("overloadRatio"))  cfg.setOverloadRatio(((Number) body.get("overloadRatio")).doubleValue());
+        if (body.containsKey("inactivityDays")) cfg.setInactivityDays(((Number) body.get("inactivityDays")).intValue());
+        if (body.containsKey("crammingDays"))   cfg.setCrammingDays(((Number) body.get("crammingDays")).intValue());
+        if (body.containsKey("crammingRatio"))  cfg.setCrammingRatio(((Number) body.get("crammingRatio")).doubleValue());
+        if (body.containsKey("minEvents"))      cfg.setMinEvents(((Number) body.get("minEvents")).intValue());
+        alertConfigRepository.save(cfg);
+        return ResponseEntity.noContent().build();
     }
 
     /** 경보 해결 처리 */
