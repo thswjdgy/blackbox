@@ -152,6 +152,14 @@ public class ProjectService {
     }
 
     /** 외부 서비스 동의 업데이트 (본인) */
+    /** 프로젝트 아카이브 / 복원 (LEADER만) */
+    @Transactional
+    public void setArchived(Long projectId, boolean archived, User requester) {
+        accessChecker.requireLeader(projectId, requester);
+        Project project = projectRepository.findById(projectId).orElseThrow();
+        project.setActive(!archived);
+    }
+
     @Transactional
     public void updateConsent(Long projectId, ProjectDto.UpdateConsentRequest req, User requester) {
         ProjectMember member = accessChecker.getMember(projectId, requester.getId());

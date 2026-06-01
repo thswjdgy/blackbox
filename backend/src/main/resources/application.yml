@@ -44,6 +44,11 @@ google:
   client-secret: ${GOOGLE_CLIENT_SECRET:}
   redirect-uri:  ${GOOGLE_REDIRECT_URI:http://localhost:8080/api/google/oauth/callback}
 
+github:
+  client-id:     ${GITHUB_CLIENT_ID:}
+  client-secret: ${GITHUB_CLIENT_SECRET:}
+  redirect-uri:  ${GITHUB_REDIRECT_URI:http://localhost/api/github/oauth/callback}
+
 frontend:
   base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
 

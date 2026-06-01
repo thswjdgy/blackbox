@@ -50,6 +50,7 @@ public class Alert {
         IMBALANCE,   // 기여도 불균형
         INACTIVITY,  // 이탈 (N일 무활동)
         OVERLOAD,    // 과부하 (1인 N% 이상)
-        CRAMMING     // 벼락치기 (마감 직전 집중 활동)
+        CRAMMING,    // 벼락치기 (마감 직전 집중 활동)
+        DEADLINE     // 태스크 마감 임박
     }
 }

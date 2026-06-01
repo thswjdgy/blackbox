@@ -14,6 +14,8 @@ import com.blackbox.domain.score.repository.AlertRepository;
 import com.blackbox.domain.score.repository.ContributionScoreRepository;
 import com.blackbox.domain.score.repository.ProjectAlertConfigRepository;
 import com.blackbox.domain.score.repository.ProjectWeightRepository;
+import com.blackbox.domain.task.entity.Task;
+import com.blackbox.domain.task.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -72,6 +74,7 @@ public class ScoreEngine {
     private final ProjectMemberRepository projectMemberRepository;
     private final ProjectWeightRepository weightRepository;
     private final ProjectAlertConfigRepository alertConfigRepository;
+    private final TaskRepository taskRepository;
 
     /**
      * 특정 프로젝트의 점수를 재계산하고 저장한다.
@@ -282,6 +285,17 @@ public class ScoreEngine {
                         String.format("멤버 '%s'의 활동 중 %.0f%%가 최근 %d일에 집중되어 있습니다.",
                                 member.getUser().getName(), ratio * 100, cfg.getCrammingDays()));
             }
+        }
+
+        // 마감 임박 감지: deadlineDays 이내에 마감되는 미완료 태스크
+        Instant now = Instant.now();
+        Instant deadlineCutoff = now.plus(cfg.getDeadlineDays(), ChronoUnit.DAYS);
+        List<Task> urgentTasks = taskRepository.findByProjectIdAndStatusNotAndDueDateBetween(
+                projectId, Task.Status.DONE, now, deadlineCutoff);
+        if (!urgentTasks.isEmpty() && !alertExists(projectId, Alert.AlertType.DEADLINE)) {
+            saveAlert(proj, Alert.AlertType.DEADLINE, "WARNING",
+                    String.format("마감 %d일 이내인 미완료 태스크가 %d개 있습니다.",
+                            cfg.getDeadlineDays(), urgentTasks.size()));
         }
     }
 

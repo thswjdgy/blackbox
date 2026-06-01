@@ -201,6 +201,22 @@ export default function SettingsPage() {
     finally { setGhPolling(false); }
   }
 
+  async function handleGhOAuth() {
+    try {
+      const res = await api.get(`/projects/${projectId}/github/oauth/auth`);
+      const popup = window.open(res.data.url, 'github-oauth', 'width=600,height=700');
+      const timer = setInterval(() => {
+        if (popup?.closed) {
+          clearInterval(timer);
+          // 팝업 닫히면 매핑 목록 갱신
+          api.get(`/projects/${projectId}/github/mappings`)
+            .then(r => setGhMappings(r.data ?? []))
+            .catch(() => {});
+        }
+      }, 500);
+    } catch { alert('GitHub OAuth 시작 실패'); }
+  }
+
   async function handleGhAddMapping(e: React.FormEvent) {
     e.preventDefault();
     try {
@@ -441,7 +457,17 @@ export default function SettingsPage() {
 
           {/* 유저 매핑 */}
           <Section title="GitHub 계정 매핑">
-            <p className="text-xs text-slate-500">팀원의 GitHub 로그인과 플랫폼 계정을 연결합니다.</p>
+            <p className="text-xs text-slate-500">팀원의 GitHub 계정을 플랫폼 계정과 연결합니다.</p>
+
+            {/* OAuth 자동 연결 */}
+            <div className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-xl border border-slate-700">
+              <div className="flex-1">
+                <p className="text-xs font-semibold text-slate-300">내 GitHub 계정 자동 연결</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">GitHub OAuth로 로그인하면 자동으로 매핑됩니다.</p>
+              </div>
+              <Btn onClick={handleGhOAuth}>🔗 GitHub으로 연결</Btn>
+            </div>
+
             <MappingList
               items={ghMappings.map(m => ({ id: m.id, label: m.userName, sub: `@${m.githubLogin}` }))}
               onDelete={handleGhDelMapping}
@@ -450,7 +476,7 @@ export default function SettingsPage() {
               <MemberSelect value={ghMapUser} onChange={setGhMapUser}
                 members={members.filter(m => !ghMappings.some(mp => mp.userId === m.userId))} />
               <input value={ghMapLogin} onChange={e => setGhMapLogin(e.target.value)}
-                placeholder="GitHub 로그인" required className={`${inputCls} flex-1`} />
+                placeholder="GitHub 로그인 (직접 입력)" required className={`${inputCls} flex-1`} />
               <Btn type="submit">추가</Btn>
             </form>
           </Section>

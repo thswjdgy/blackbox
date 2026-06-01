@@ -9,6 +9,7 @@ import java.util.Optional;
 public interface GitHubUserMappingRepository extends JpaRepository<GitHubUserMapping, Long> {
     List<GitHubUserMapping> findByProjectId(Long projectId);
     Optional<GitHubUserMapping> findByProjectIdAndGithubLogin(Long projectId, String githubLogin);
+    Optional<GitHubUserMapping> findByProjectIdAndUserId(Long projectId, Long userId);
     boolean existsByProjectIdAndUserId(Long projectId, Long userId);
     void deleteByProjectIdAndId(Long projectId, Long id);
 }

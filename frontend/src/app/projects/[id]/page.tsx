@@ -43,20 +43,6 @@ interface MeetingSummary {
   attendeeCount: number;
 }
 
-interface MemberScore {
-  userId: number;
-  userName: string;
-  totalScore: number;
-  grade: string;
-}
-
-const GRADE_COLOR: Record<string, string> = {
-  A: 'text-emerald-400',
-  B: 'text-blue-400',
-  C: 'text-yellow-400',
-  D: 'text-orange-400',
-  F: 'text-red-400',
-};
 
 const AVATAR_COLORS = [
   'bg-rose-400',
@@ -86,7 +72,6 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [taskSummary, setTaskSummary] = useState<TaskSummary>({ todo: 0, inProgress: 0, done: 0, total: 0 });
   const [recentMeetings, setRecentMeetings] = useState<MeetingSummary[]>([]);
-  const [scores, setScores] = useState<MemberScore[]>([]);
   const [loading, setLoading] = useState(true);
   const [copySuccess, setCopySuccess] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -94,11 +79,10 @@ export default function ProjectDetailPage() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [projRes, taskRes, meetRes, scoreRes] = await Promise.allSettled([
+      const [projRes, taskRes, meetRes] = await Promise.allSettled([
         api.get(`/projects/${projectId}`),
         api.get(`/projects/${projectId}/tasks`),
         api.get(`/projects/${projectId}/meetings`),
-        api.get(`/projects/${projectId}/scores`),
       ]);
 
       if (projRes.status === 'fulfilled') setProject(projRes.value.data);
@@ -118,9 +102,6 @@ export default function ProjectDetailPage() {
         setRecentMeetings((meetRes.value.data as MeetingSummary[]).slice(0, 3));
       }
 
-      if (scoreRes.status === 'fulfilled' && scoreRes.value.data?.members) {
-        setScores(scoreRes.value.data.members.slice(0, 5));
-      }
     } finally {
       setLoading(false);
     }
@@ -144,6 +125,18 @@ export default function ProjectDetailPage() {
 
   const myProjectRole = project?.members.find(m => m.userId === user?.id)?.projectRole ?? '';
   const canManage = myProjectRole === 'LEADER' || user?.role === 'PROFESSOR' || user?.role === 'TA';
+
+  const handleToggleArchive = async () => {
+    if (!project) return;
+    const archiving = project.active;
+    if (!confirm(archiving ? '프로젝트를 아카이브하시겠습니까? 비활성 상태로 전환됩니다.' : '프로젝트를 복원하시겠습니까?')) return;
+    try {
+      await api.patch(`/projects/${projectId}/archive`, { archived: archiving });
+      setProject(p => p ? { ...p, active: !archiving } : p);
+    } catch (e: any) {
+      alert(e.response?.data?.message ?? '처리 실패');
+    }
+  };
 
   const handleRoleChange = async (targetId: number, currentRole: string) => {
     const next = currentRole === 'LEADER' ? 'MEMBER' : 'LEADER';
@@ -203,12 +196,26 @@ export default function ProjectDetailPage() {
             )}
           </div>
           <div className="flex flex-col gap-3 shrink-0">
-            <button
-              onClick={() => setEditOpen(true)}
-              className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 transition-all"
-            >
-              ✏️ 프로젝트 편집
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setEditOpen(true)}
+                className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 transition-all"
+              >
+                ✏️ 편집
+              </button>
+              {canManage && (
+                <button
+                  onClick={handleToggleArchive}
+                  className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
+                    project.active
+                      ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-orange-400 hover:border-orange-500/50'
+                      : 'bg-emerald-900/20 border-emerald-500/30 text-emerald-400 hover:bg-emerald-900/40'
+                  }`}
+                >
+                  {project.active ? '📦 아카이브' : '🔄 복원'}
+                </button>
+              )}
+            </div>
           <div className="bg-slate-800/60 backdrop-blur-sm p-5 rounded-2xl border border-slate-700/50 shadow-xl group">
             <p className="text-[10px] uppercase font-bold text-slate-500 mb-2 tracking-widest">초대 코드</p>
             <div className="flex items-center gap-3">
@@ -315,7 +322,6 @@ export default function ProjectDetailPage() {
             <h2 className="text-sm font-bold text-slate-300 mb-4">팀 멤버 <span className="text-slate-500 ml-1">{project.members.length}</span></h2>
             <ul className="space-y-3">
               {project.members.map(member => {
-                const score = scores.find(s => s.userId === member.userId);
                 const isSelf = member.userId === user?.id;
                 const isMenuOpen = menuOpenId === member.userId;
                 return (
@@ -336,11 +342,6 @@ export default function ProjectDetailPage() {
                         {member.projectRole === 'LEADER' ? '👑 팀장' : '팀원'}
                       </p>
                     </div>
-                    {score && (
-                      <span className={`text-sm font-black shrink-0 ${GRADE_COLOR[score.grade] ?? 'text-slate-400'}`}>
-                        {score.grade}
-                      </span>
-                    )}
                     {canManage && !isSelf && (
                       <div className="relative">
                         <button
@@ -371,29 +372,6 @@ export default function ProjectDetailPage() {
             </ul>
           </div>
 
-          {/* 기여도 순위 */}
-          {scores.length > 0 && (
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-bold text-slate-300">기여도 순위</h2>
-                <Link href={`/projects/${projectId}/report`} className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
-                  상세 →
-                </Link>
-              </div>
-              <ol className="space-y-2">
-                {[...scores].sort((a, b) => b.totalScore - a.totalScore).map((s, i) => (
-                  <li key={s.userId} className="flex items-center gap-3">
-                    <span className={`text-xs font-black w-5 text-center shrink-0 ${i === 0 ? 'text-amber-400' : i === 1 ? 'text-slate-300' : i === 2 ? 'text-amber-700' : 'text-slate-600'}`}>
-                      {i + 1}
-                    </span>
-                    <span className="text-sm text-slate-300 flex-1 truncate">{s.userName}</span>
-                    <span className="text-xs font-bold text-slate-400">{s.totalScore}pt</span>
-                    <span className={`text-xs font-black ${GRADE_COLOR[s.grade] ?? 'text-slate-400'}`}>{s.grade}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
         </div>
       </div>
 

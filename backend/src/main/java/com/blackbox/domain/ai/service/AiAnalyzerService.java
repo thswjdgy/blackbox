@@ -30,6 +30,11 @@ public class AiAnalyzerService {
     private final AiAnalysisResultRepository analysisResultRepository;
     private final ObjectMapper objectMapper;
 
+    // 품질 점수(1~5) → scoreWeight 배율
+    private static final Map<Integer, Double> QUALITY_MULTIPLIER = Map.of(
+            1, 0.5, 2, 0.75, 3, 1.0, 4, 1.25, 5, 1.5
+    );
+
     /** 커밋 메시지 품질 분석 — 최근 N건 GITHUB_PUSH 이벤트 대상 */
     public List<Map<String, Object>> analyzeCommitQuality(Long projectId, int limit) {
         limit = Math.min(limit, 20);
@@ -106,6 +111,30 @@ public class AiAnalyzerService {
                         "author", c.get("author"), "score", 0, "feedback", aiResponse
                 )));
             }
+        }
+
+        // quality_score → activity_logs.payload 반영 (scoreWeight 조정)
+        for (Map<String, Object> result : results) {
+            int score = result.get("score") instanceof Number n ? n.intValue() : 0;
+            if (score < 1 || score > 5) continue;
+            String shortSha = String.valueOf(result.get("sha"));
+            pushes.stream()
+                    .filter(p -> {
+                        String fullSha = p.getPayload() != null
+                                ? String.valueOf(p.getPayload().getOrDefault("sha", "")) : "";
+                        return fullSha.startsWith(shortSha);
+                    })
+                    .findFirst()
+                    .ifPresent(push -> {
+                        Map<String, Object> newPayload = new HashMap<>(
+                                push.getPayload() != null ? push.getPayload() : Map.of());
+                        double base = ((Number) newPayload.getOrDefault("scoreWeight", 1.0)).doubleValue();
+                        double multiplier = QUALITY_MULTIPLIER.getOrDefault(score, 1.0);
+                        newPayload.put("qualityScore", score);
+                        newPayload.put("scoreWeight", Math.round(base * multiplier * 100.0) / 100.0);
+                        push.setPayload(newPayload);
+                        activityLogRepository.save(push);
+                    });
         }
 
         // 결과 DB 저장

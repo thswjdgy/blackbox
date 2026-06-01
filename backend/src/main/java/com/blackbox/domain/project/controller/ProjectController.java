@@ -98,6 +98,16 @@ public class ProjectController {
         return ResponseEntity.noContent().build();
     }
 
+    /** PATCH /api/projects/{id}/archive — 아카이브 / 복원 (LEADER) */
+    @PatchMapping("/{id}/archive")
+    public ResponseEntity<Void> setArchived(
+            @PathVariable Long id,
+            @RequestBody java.util.Map<String, Boolean> body,
+            @AuthenticationPrincipal User user) {
+        projectService.setArchived(id, Boolean.TRUE.equals(body.get("archived")), user);
+        return ResponseEntity.noContent().build();
+    }
+
     /** PATCH /api/projects/{id}/members/me/consent — 외부 서비스 동의 업데이트 */
     @PatchMapping("/{id}/members/me/consent")
     public ResponseEntity<Void> updateConsent(

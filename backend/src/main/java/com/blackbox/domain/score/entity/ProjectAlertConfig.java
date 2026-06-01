@@ -45,4 +45,8 @@ public class ProjectAlertConfig {
     @Column(name = "min_events", nullable = false)
     @Builder.Default
     private int minEvents = 10;
+
+    @Column(name = "deadline_days", nullable = false)
+    @Builder.Default
+    private int deadlineDays = 3;
 }

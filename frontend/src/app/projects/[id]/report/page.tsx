@@ -62,6 +62,7 @@ interface AlertConfig {
   crammingDays: number;
   crammingRatio: number;
   minEvents: number;
+  deadlineDays: number;
 }
 
 const GRADE_COLOR: Record<string, string> = {
@@ -89,6 +90,7 @@ const ALERT_TYPE_LABEL: Record<string, string> = {
   OVERLOAD:  '과부하',
   INACTIVITY:'무활동 이탈',
   CRAMMING:  '벼락치기',
+  DEADLINE:  '마감 임박',
 };
 
 const PRESETS: Record<string, Weights> = {
@@ -132,7 +134,7 @@ export default function ReportPage() {
 
   const DEFAULT_ALERT_CFG: AlertConfig = {
     imbalancePct: 40, overloadRatio: 0.60,
-    inactivityDays: 14, crammingDays: 7, crammingRatio: 0.60, minEvents: 10,
+    inactivityDays: 14, crammingDays: 7, crammingRatio: 0.60, minEvents: 10, deadlineDays: 3,
   };
   const [alertConfig, setAlertConfig] = useState<AlertConfig>(DEFAULT_ALERT_CFG);
   const [alertConfigOpen, setAlertConfigOpen] = useState(false);
@@ -379,6 +381,7 @@ export default function ReportPage() {
               { key: 'crammingDays',   label: '벼락치기 기간 (일)', min: 3,  max: 14,  step: 1,    unit: '일', desc: '집중 활동 감지 기간' },
               { key: 'crammingRatio',  label: '벼락치기 비율',      min: 0.3, max: 0.9, step: 0.05, unit: '%',  desc: '기간 내 활동이 전체의 N%', pct: true },
               { key: 'minEvents',      label: '최소 이벤트 수',     min: 3,  max: 50,  step: 1,    unit: '건', desc: '벼락치기 감지 최소 총 활동' },
+              { key: 'deadlineDays',   label: '마감 임박 기준 (일)', min: 1,  max: 14,  step: 1,    unit: '일', desc: '마감일까지 N일 이내 미완료 태스크' },
             ].map(({ key, label, min, max, step, unit, desc, pct }) => {
               const val = alertConfig[key as keyof AlertConfig] as number;
               const display = pct ? `${(val * 100).toFixed(0)}%` : `${val}${unit}`;

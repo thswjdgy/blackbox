@@ -156,14 +156,15 @@ public class ScoreController {
     public ResponseEntity<java.util.Map<String, Object>> getAlertConfig(@PathVariable Long projectId) {
         ProjectAlertConfig cfg = alertConfigRepository.findByProjectId(projectId)
                 .orElseGet(ProjectAlertConfig::new);
-        return ResponseEntity.ok(java.util.Map.of(
-                "imbalancePct",   cfg.getImbalancePct(),
-                "overloadRatio",  cfg.getOverloadRatio(),
-                "inactivityDays", cfg.getInactivityDays(),
-                "crammingDays",   cfg.getCrammingDays(),
-                "crammingRatio",  cfg.getCrammingRatio(),
-                "minEvents",      cfg.getMinEvents()
-        ));
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("imbalancePct",   cfg.getImbalancePct());
+        result.put("overloadRatio",  cfg.getOverloadRatio());
+        result.put("inactivityDays", cfg.getInactivityDays());
+        result.put("crammingDays",   cfg.getCrammingDays());
+        result.put("crammingRatio",  cfg.getCrammingRatio());
+        result.put("minEvents",      cfg.getMinEvents());
+        result.put("deadlineDays",   cfg.getDeadlineDays());
+        return ResponseEntity.ok(result);
     }
 
     /** 경보 임계값 설정 저장 */
@@ -180,6 +181,7 @@ public class ScoreController {
         if (body.containsKey("crammingDays"))   cfg.setCrammingDays(((Number) body.get("crammingDays")).intValue());
         if (body.containsKey("crammingRatio"))  cfg.setCrammingRatio(((Number) body.get("crammingRatio")).doubleValue());
         if (body.containsKey("minEvents"))      cfg.setMinEvents(((Number) body.get("minEvents")).intValue());
+        if (body.containsKey("deadlineDays"))   cfg.setDeadlineDays(((Number) body.get("deadlineDays")).intValue());
         alertConfigRepository.save(cfg);
         return ResponseEntity.noContent().build();
     }
