@@ -36,7 +36,12 @@ public class GitHubService {
         GitHubInstallation inst = installationRepository.findByProjectId(projectId)
                 .orElseGet(() -> GitHubInstallation.builder().project(project).build());
 
-        inst.setRepoFullName(req.repoFullName());
+        // "https://github.com/owner/repo" 또는 "github.com/owner/repo" 형식도 허용
+        String repoFullName = req.repoFullName().trim()
+                .replaceAll("(?i)^https?://github\\.com/", "")
+                .replaceAll("(?i)^github\\.com/", "")
+                .replaceAll("/+$", ""); // trailing slash 제거
+        inst.setRepoFullName(repoFullName);
         if (req.githubToken() != null && !req.githubToken().isBlank())
             inst.setGithubToken(req.githubToken());
         if (req.webhookSecret() != null && !req.webhookSecret().isBlank())
