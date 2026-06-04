@@ -36,6 +36,7 @@ public class NotionPollService {
     private final UserRepository               userRepository;
     private final ProjectMemberRepository      projectMemberRepository;
     private final RestTemplate                 restTemplate;
+    private final com.blackbox.domain.score.service.DiscordNotificationService discordService;
 
     /** .env / docker-compose 환경변수로 주입되는 글로벌 토큰 */
     @Value("${notion.token:}")
@@ -104,6 +105,12 @@ public class NotionPollService {
 
         inst.setLastPolledAt(Instant.now());
         installationRepository.save(inst);
+
+        if (created + edited > 0) {
+            String projectName = inst.getProject().getName();
+            String desc = String.format("페이지 **%d**개 생성 · **%d**개 수정됐습니다.", created, edited);
+            discordService.sendUpdate(projectId, projectName, "📓 Notion 업데이트", desc, 0x000000);
+        }
 
         log.info("Notion poll [project={}]: {} created, {} edited", projectId, created, edited);
         return new NotionDto.PollResult(created, edited, created + edited);

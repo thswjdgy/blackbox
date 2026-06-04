@@ -157,7 +157,7 @@ public class AiAnalyzerService {
         Map<Long, String> nameMap = members.stream()
                 .collect(Collectors.toMap(
                         m -> m.getUser().getId(),
-                        m -> m.isConsentAi() ? m.getUser().getName() : "익명사용자_" + m.getUser().getId()
+                        m -> m.getUser().getName()
                 ));
 
         // 최근 50개 활동 로그

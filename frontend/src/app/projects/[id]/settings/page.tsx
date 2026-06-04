@@ -59,7 +59,7 @@ interface Member {
 }
 
 /* ── 섹션 탭 ── */
-type Tab = 'github' | 'notion' | 'google' | 'ai';
+type Tab = 'github' | 'notion' | 'google' | 'discord';
 
 export default function SettingsPage() {
   const params       = useParams();
@@ -110,11 +110,12 @@ export default function SettingsPage() {
   const [ntUsers,      setNtUsers]      = useState<{id: string; name: string; email: string | null}[]>([]);
   const [ntLooking,    setNtLooking]    = useState(false);
 
-  /* AI Consent state */
-  const [consentAi,     setConsentAi]     = useState(false);
-  const [consentGithub, setConsentGithub] = useState(false);
-  const [consentDrive,  setConsentDrive]  = useState(false);
-  const [aiSaving,      setAiSaving]      = useState(false);
+  /* Discord state */
+  const [discordUrl,    setDiscordUrl]    = useState('');
+  const [discordSaving, setDiscordSaving] = useState(false);
+  const [discordTesting,setDiscordTesting]= useState(false);
+  const [discordMsg,    setDiscordMsg]    = useState<string | null>(null);
+
 
   const [loading, setLoading] = useState(true);
 
@@ -124,7 +125,7 @@ export default function SettingsPage() {
   async function fetchAll() {
     setLoading(true);
     try {
-      const [projRes, ghRes, ghMapRes, ntRes, ntMapRes, gRes, gMapRes, memRes] = await Promise.allSettled([
+      const [projRes, ghRes, ghMapRes, ntRes, ntMapRes, gRes, gMapRes, memRes, discordRes] = await Promise.allSettled([
         api.get(`/projects/${projectId}`),
         api.get(`/projects/${projectId}/github`),
         api.get(`/projects/${projectId}/github/mappings`),
@@ -133,12 +134,10 @@ export default function SettingsPage() {
         api.get(`/projects/${projectId}/google`),
         api.get(`/projects/${projectId}/google/mappings`),
         api.get(`/projects/${projectId}/members`),
+        api.get(`/projects/${projectId}/discord`),
       ]);
 
       if (projRes.status === 'fulfilled' && projRes.value.data) {
-        setConsentAi(projRes.value.data.consentAi ?? false);
-        setConsentGithub(projRes.value.data.consentGithub ?? false);
-        setConsentDrive(projRes.value.data.consentDrive ?? false);
       }
 
       if (ghRes.status === 'fulfilled' && ghRes.value.data) {
@@ -167,6 +166,7 @@ export default function SettingsPage() {
           userName: m.name,
         })));
       }
+      if (discordRes.status === 'fulfilled') setDiscordUrl(discordRes.value.data?.webhookUrl ?? '');
     } finally { setLoading(false); }
   }
 
@@ -365,24 +365,25 @@ export default function SettingsPage() {
     setGMappings(p => p.filter(m => m.id !== id));
   }
 
-  /* ── AI 핸들러 ── */
-  async function handleToggleAiConsent() {
-    const newVal = !consentAi;
-    setConsentAi(newVal);
-    setAiSaving(true);
+  /* ── Discord 핸들러 ── */
+  async function handleDiscordSave() {
+    setDiscordSaving(true); setDiscordMsg(null);
     try {
-      await api.patch(`/projects/${projectId}/members/me/consent`, {
-        consentGithub,
-        consentDrive,
-        consentAi: newVal,
-      });
-    } catch {
-      alert('설정 저장에 실패했습니다.');
-      setConsentAi(!newVal);
-    } finally {
-      setAiSaving(false);
-    }
+      await api.put(`/projects/${projectId}/discord`, { webhookUrl: discordUrl });
+      setDiscordMsg('저장됐습니다.');
+    } catch { setDiscordMsg('저장 실패'); }
+    finally { setDiscordSaving(false); }
   }
+
+  async function handleDiscordTest() {
+    setDiscordTesting(true); setDiscordMsg(null);
+    try {
+      await api.post(`/projects/${projectId}/discord/test`, { webhookUrl: discordUrl });
+      setDiscordMsg('테스트 메시지를 전송했습니다. Discord를 확인하세요.');
+    } catch { setDiscordMsg('전송 실패. URL을 확인해 주세요.'); }
+    finally { setDiscordTesting(false); }
+  }
+
 
   if (loading) return (
     <div className="flex items-center justify-center h-full text-slate-400 text-sm">로딩 중…</div>
@@ -395,10 +396,10 @@ export default function SettingsPage() {
       {/* 탭 */}
       <div className="flex gap-1 bg-slate-800/60 rounded-xl p-1 w-fit">
         {([
-          { id: 'github', label: ' GitHub', connected: !!ghInst },
-          { id: 'notion', label: 'N  Notion', connected: !!ntInst },
-          { id: 'google', label: 'G  Google', connected: !!gInst?.connected },
-          { id: 'ai',     label: '🤖 AI 설정', connected: consentAi },
+          { id: 'github',  label: ' GitHub',   connected: !!ghInst },
+          { id: 'notion',  label: 'N  Notion',  connected: !!ntInst },
+          { id: 'google',  label: 'G  Google',  connected: !!gInst?.connected },
+          { id: 'discord', label: '🔔 Discord', connected: !!discordUrl },
         ] as const).map(t => (
           <button
             key={t.id}
@@ -697,42 +698,68 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* ══════════════════ AI 설정 탭 ══════════════════ */}
-      {activeTab === 'ai' && (
+      {/* ══════════════════ Discord 탭 ══════════════════ */}
+      {activeTab === 'discord' && (
         <div className="space-y-6">
-          <Section title="AI 분석 데이터 제공 동의" badge={consentAi ? '동의됨' : '미동의'}>
-            <p className="text-xs text-slate-500 leading-relaxed mb-4">
-              Team Blackbox의 AI Analyzer(Claude)가 프로젝트 활동 로그를 분석하여 
-              팀의 기여도와 협업 상태를 리포트할 수 있도록 데이터를 제공하는 데 동의합니다.
-              <br />
-              <strong>미동의 시 AI 분석 결과에서 본인의 활동 내역은 "익명사용자"로 처리되어 표시됩니다.</strong>
+          <Section title="Discord Webhook" badge={discordUrl ? '연동됨' : undefined}>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              경보 발생 및 GitHub 활동 시 Discord 채널로 자동 알림을 보냅니다.
             </p>
-            
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={consentAi}
-                onClick={handleToggleAiConsent}
-                disabled={aiSaving}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  consentAi ? 'bg-violet-500' : 'bg-slate-700'
-                } ${aiSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    consentAi ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-              <span className="text-sm font-medium text-white">
-                {consentAi ? '✅ AI 분석에 동의했습니다' : '❌ 동의하지 않았습니다'}
-              </span>
+
+            {/* Webhook URL 입력 */}
+            <Field label="Webhook URL *">
+              <input
+                type="url"
+                value={discordUrl}
+                onChange={e => { setDiscordUrl(e.target.value); setDiscordMsg(null); }}
+                placeholder="https://discord.com/api/webhooks/..."
+                className={inputCls}
+              />
+              <p className="text-[11px] text-slate-600 mt-1">
+                Discord 채널 → 편집 → 연동 → 웹후크 → 새 웹후크 → URL 복사
+              </p>
+            </Field>
+
+            <ActionRow>
+              <Btn onClick={handleDiscordSave} disabled={discordSaving || !discordUrl}>
+                {discordSaving ? '저장 중…' : '저장'}
+              </Btn>
+              <Btn variant="gray" onClick={handleDiscordTest} disabled={discordTesting || !discordUrl}>
+                {discordTesting ? '전송 중…' : '🧪 테스트 전송'}
+              </Btn>
+              {discordUrl && (
+                <Btn variant="danger" onClick={() => { setDiscordUrl(''); api.put(`/projects/${projectId}/discord`, { webhookUrl: '' }); }}>
+                  연동 해제
+                </Btn>
+              )}
+            </ActionRow>
+            {discordMsg && <Msg>{discordMsg}</Msg>}
+          </Section>
+
+          {/* 알림 목록 */}
+          <Section title="알림 항목">
+            <div className="space-y-2 text-xs text-slate-400">
+              {[
+                { icon: '🚨', label: '경보 발생',       desc: '기여 불균형 · 과부하 · 무활동 · 벼락치기 · 마감 임박' },
+                { icon: '📋', label: '태스크 생성',     desc: '새 태스크가 추가될 때 (캘린더 · 보드 모두)' },
+                { icon: '📝', label: '회의 일정 추가',  desc: '새 회의가 등록될 때 (캘린더 · 회의록 모두)' },
+                { icon: '🐙', label: 'GitHub 업데이트', desc: '새 커밋 또는 PR 감지 시 (폴링 · 웹훅 모두)' },
+                { icon: '📓', label: 'Notion 업데이트', desc: '페이지 생성 · 수정 감지 시' },
+                { icon: '📁', label: 'Google 업데이트', desc: 'Drive · Sheets · Forms 활동 감지 시' },
+              ].map(item => (
+                <div key={item.label} className="flex items-start gap-3 p-3 bg-slate-800/40 rounded-xl">
+                  <span className="text-lg shrink-0">{item.icon}</span>
+                  <div>
+                    <p className="font-semibold text-slate-300">{item.label}</p>
+                    <p className="text-slate-500 mt-0.5">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
             </div>
-            {aiSaving && <p className="text-xs text-violet-400 mt-2">저장 중...</p>}
           </Section>
         </div>
       )}
+
     </div>
   );
 }

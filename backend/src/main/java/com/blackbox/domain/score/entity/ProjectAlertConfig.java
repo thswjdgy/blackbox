@@ -49,4 +49,7 @@ public class ProjectAlertConfig {
     @Column(name = "deadline_days", nullable = false)
     @Builder.Default
     private int deadlineDays = 3;
+
+    @Column(name = "discord_webhook_url")
+    private String discordWebhookUrl;
 }

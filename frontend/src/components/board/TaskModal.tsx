@@ -19,7 +19,7 @@ interface Props {
 export function TaskModal({ isOpen, onClose, onSave, initialData, members = [] }: Props) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH'>('MEDIUM');
+  const [priority, setPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'>('MEDIUM');
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
 
   useEffect(() => {
@@ -78,19 +78,21 @@ export function TaskModal({ isOpen, onClose, onSave, initialData, members = [] }
           <div>
             <label className="block text-xs uppercase font-bold text-slate-400 mb-2 tracking-wider">우선순위</label>
             <div className="flex gap-2">
-              {(['LOW', 'MEDIUM', 'HIGH'] as const).map(p => (
+              {(['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as const).map(p => (
                 <button
                   key={p}
+                  type="button"
                   onClick={() => setPriority(p)}
                   className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all border
                     ${priority === p
-                      ? p === 'HIGH' ? 'bg-rose-500/20 text-rose-300 border-rose-500'
+                      ? p === 'URGENT' ? 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500'
+                        : p === 'HIGH' ? 'bg-rose-500/20 text-rose-300 border-rose-500'
                         : p === 'LOW' ? 'bg-slate-600 text-white border-slate-500'
                         : 'bg-blue-500/20 text-blue-300 border-blue-500'
                       : 'bg-slate-800 border-slate-700 text-slate-500 hover:bg-slate-700 hover:text-slate-300'
                     }`}
                 >
-                  {p}
+                  {p === 'URGENT' ? '긴급' : p === 'HIGH' ? '높음' : p === 'MEDIUM' ? '보통' : '낮음'}
                 </button>
               ))}
             </div>

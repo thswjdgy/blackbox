@@ -30,6 +30,7 @@ public class TaskService {
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final ActivityLogService activityLogService;
+    private final com.blackbox.domain.score.service.DiscordNotificationService discordService;
 
     @Transactional
     public TaskDto.Response createTask(Long projectId, Long userId, TaskDto.CreateRequest req) {
@@ -60,6 +61,22 @@ public class TaskService {
                 project, user, task.getId(), EventType.TASK_CREATED,
                 Map.of("title", task.getTitle())
         );
+
+        String priorityLabel = switch (task.getPriority()) {
+            case URGENT -> "긴급";
+            case HIGH   -> "높음";
+            case MEDIUM -> "보통";
+            case LOW    -> "낮음";
+        };
+        String dueStr = task.getDueDate() != null
+                ? " · 마감 " + task.getDueDate().atZone(java.time.ZoneId.of("Asia/Seoul"))
+                        .toLocalDate().toString()
+                : "";
+        discordService.sendUpdate(projectId, project.getName(),
+                "📋 새 태스크 추가됨",
+                String.format("**%s**\n우선순위: %s%s\n등록자: %s",
+                        task.getTitle(), priorityLabel, dueStr, user.getName()),
+                0x7C3AED);
 
         return toResponse(task);
     }

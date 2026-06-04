@@ -45,6 +45,7 @@ public class MeetingService {
     private final TaskRepository taskRepository;
     private final ActivityLogService activityLogService;
     private final OpenAiApiService openAiApiService;
+    private final com.blackbox.domain.score.service.DiscordNotificationService discordService;
 
     @Transactional
     public MeetingDto.Response createMeeting(Long projectId, Long userId, MeetingDto.CreateRequest req) {
@@ -68,6 +69,16 @@ public class MeetingService {
                 project, user, meeting.getId(), EventType.MEETING_CREATED,
                 Map.of("title", meeting.getTitle())
         );
+
+        String timeStr = meeting.getMeetingAt() != null
+                ? meeting.getMeetingAt().atZone(java.time.ZoneId.of("Asia/Seoul"))
+                        .format(java.time.format.DateTimeFormatter.ofPattern("M월 d일 HH:mm"))
+                : "";
+        discordService.sendUpdate(projectId, project.getName(),
+                "📝 새 회의 일정 추가됨",
+                String.format("**%s**\n일시: %s\n등록자: %s",
+                        meeting.getTitle(), timeStr, user.getName()),
+                0x3B82F6);
 
         return toResponse(meeting);
     }

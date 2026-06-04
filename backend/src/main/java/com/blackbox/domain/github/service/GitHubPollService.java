@@ -34,6 +34,7 @@ public class GitHubPollService {
     private final ActivityLogRepository        activityLogRepository;
     private final UserRepository               userRepository;
     private final RestTemplate                 restTemplate;
+    private final com.blackbox.domain.score.service.DiscordNotificationService discordService;
 
     private static final String GH_API = "https://api.github.com";
 
@@ -73,6 +74,15 @@ public class GitHubPollService {
 
         inst.setLastPolledAt(Instant.now());
         installationRepository.save(inst);
+
+        // Discord 알림 — 새 이벤트가 있을 때만
+        if (commits + prs > 0) {
+            Long projectId = inst.getProject().getId();
+            String projectName = inst.getProject().getName();
+            String desc = String.format("`%s` 에서 새 활동이 감지됐습니다.\n커밋 **%d**건 · PR **%d**건",
+                    inst.getRepoFullName(), commits, prs);
+            discordService.sendUpdate(projectId, projectName, "🐙 GitHub 업데이트", desc, 0x24292E);
+        }
 
         log.info("GitHub poll [{}]: {} commits, {} PRs", inst.getRepoFullName(), commits, prs);
         return new GitHubDto.PollResult(inst.getRepoFullName(), commits + prs, 0);

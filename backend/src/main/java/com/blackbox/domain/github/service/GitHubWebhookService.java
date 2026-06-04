@@ -30,6 +30,7 @@ public class GitHubWebhookService {
     private final GitHubUserMappingRepository  mappingRepository;
     private final ActivityLogRepository        activityLogRepository;
     private final UserRepository               userRepository;
+    private final com.blackbox.domain.score.service.DiscordNotificationService discordService;
 
     /**
      * GitHub X-Hub-Signature-256 헤더 검증
@@ -66,6 +67,7 @@ public class GitHubWebhookService {
         List<Map<String, Object>> commits = (List<Map<String, Object>>) payload.get("commits");
         if (commits == null) return;
 
+        int savedCount = 0;
         for (Map<String, Object> commit : commits) {
             String sha = (String) commit.get("id");
             if (sha == null) continue;
@@ -105,6 +107,12 @@ public class GitHubWebhookService {
                     .payload(logPayload)
                     .build());
             log.debug("Webhook push saved: sha={} repo={} files={}", sha, repoFullName, filesChanged);
+            savedCount++;
+        }
+
+        if (savedCount > 0) {
+            String desc = String.format("`%s` 에 새 커밋 **%d**개가 푸시됐습니다.", repoFullName, savedCount);
+            discordService.sendUpdate(projectId, inst.getProject().getName(), "🐙 GitHub 푸시", desc, 0x24292E);
         }
     }
 

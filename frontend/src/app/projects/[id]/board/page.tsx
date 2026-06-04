@@ -32,7 +32,7 @@ const COLUMNS = [
 ] as const;
 
 type ColId = typeof COLUMNS[number]['id'];
-type Priority = 'LOW' | 'MEDIUM' | 'HIGH';
+type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 
 const COL_IDS = COLUMNS.map(c => c.id) as string[];
 
@@ -60,7 +60,7 @@ export default function KanbanBoardPage() {
   const [activeTask, setActiveTask] = useState<TaskType | null>(null);
   const dragOriginStatus = useRef<string | null>(null);
 
-  const [filterPriority, setFilterPriority] = useState<Priority | ''>('');
+  const [filterPriority, setFilterPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | ''>('');
   const [filterTag, setFilterTag] = useState('');
 
   const [selectedTask, setSelectedTask] = useState<TaskType | null>(null);
@@ -211,19 +211,20 @@ export default function KanbanBoardPage() {
         <div className="flex items-center gap-3 flex-wrap pt-1 border-t border-slate-800">
           <span className="text-xs text-slate-500 font-medium">필터</span>
           <div className="flex gap-1.5">
-            {(['LOW', 'MEDIUM', 'HIGH'] as Priority[]).map(p => (
+            {(['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as Priority[]).map(p => (
               <button
                 key={p}
                 onClick={() => setFilterPriority(prev => prev === p ? '' : p)}
                 className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all
                   ${filterPriority === p
-                    ? p === 'HIGH' ? 'bg-rose-500/20 text-rose-300 border-rose-500'
+                    ? p === 'URGENT' ? 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500'
+                      : p === 'HIGH' ? 'bg-rose-500/20 text-rose-300 border-rose-500'
                       : p === 'LOW' ? 'bg-slate-600 text-white border-slate-500'
                       : 'bg-blue-500/20 text-blue-300 border-blue-500'
                     : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-600'
                   }`}
               >
-                {p}
+                {p === 'URGENT' ? '긴급' : p === 'HIGH' ? '높음' : p === 'MEDIUM' ? '보통' : '낮음'}
               </button>
             ))}
           </div>

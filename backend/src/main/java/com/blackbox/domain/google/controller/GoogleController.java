@@ -113,8 +113,9 @@ public class GoogleController {
     @PostMapping("/projects/{projectId}/google/push-vault/{fileId}")
     public ResponseEntity<Map<String, String>> pushVaultFile(
             @PathVariable Long projectId,
-            @PathVariable Long fileId) {
-        String url = pushService.pushVaultFile(projectId, fileId);
+            @PathVariable Long fileId,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.blackbox.domain.user.entity.User user) {
+        String url = pushService.pushVaultFile(projectId, fileId, user.getId());
         return ResponseEntity.ok(Map.of("url", url));
     }
 }

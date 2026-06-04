@@ -163,7 +163,8 @@ public class ScoreController {
         result.put("crammingDays",   cfg.getCrammingDays());
         result.put("crammingRatio",  cfg.getCrammingRatio());
         result.put("minEvents",      cfg.getMinEvents());
-        result.put("deadlineDays",   cfg.getDeadlineDays());
+        result.put("deadlineDays",        cfg.getDeadlineDays());
+        result.put("discordWebhookUrl",   cfg.getDiscordWebhookUrl() != null ? cfg.getDiscordWebhookUrl() : "");
         return ResponseEntity.ok(result);
     }
 
@@ -181,7 +182,8 @@ public class ScoreController {
         if (body.containsKey("crammingDays"))   cfg.setCrammingDays(((Number) body.get("crammingDays")).intValue());
         if (body.containsKey("crammingRatio"))  cfg.setCrammingRatio(((Number) body.get("crammingRatio")).doubleValue());
         if (body.containsKey("minEvents"))      cfg.setMinEvents(((Number) body.get("minEvents")).intValue());
-        if (body.containsKey("deadlineDays"))   cfg.setDeadlineDays(((Number) body.get("deadlineDays")).intValue());
+        if (body.containsKey("deadlineDays"))      cfg.setDeadlineDays(((Number) body.get("deadlineDays")).intValue());
+        if (body.containsKey("discordWebhookUrl")) cfg.setDiscordWebhookUrl((String) body.get("discordWebhookUrl"));
         alertConfigRepository.save(cfg);
         return ResponseEntity.noContent().build();
     }

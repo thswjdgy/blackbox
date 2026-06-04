@@ -44,6 +44,7 @@ public class GooglePollService {
     private final ProjectMemberRepository      projectMemberRepository;
     private final UserRepository               userRepository;
     private final RestTemplate                 restTemplate;
+    private final com.blackbox.domain.score.service.DiscordNotificationService discordService;
 
     /** 30분마다 모든 프로젝트 폴링 */
     @Scheduled(fixedDelay = 1_800_000)
@@ -88,6 +89,17 @@ public class GooglePollService {
         inst.setSheetsPolledAt(now);
         inst.setFormsPolledAt(now);
         installationRepository.save(inst);
+
+        int total = drive + sheets + forms;
+        if (total > 0) {
+            String projectName = inst.getProject().getName();
+            List<String> parts = new java.util.ArrayList<>();
+            if (drive  > 0) parts.add("Drive **" + drive  + "**건");
+            if (sheets > 0) parts.add("Sheets **" + sheets + "**건");
+            if (forms  > 0) parts.add("Forms **"  + forms  + "**건");
+            String desc = String.join(" · ", parts) + " 새 활동이 감지됐습니다.";
+            discordService.sendUpdate(projectId, projectName, "📁 Google 업데이트", desc, 0x4285F4);
+        }
 
         log.info("Google poll [project={}]: drive={}, sheets={}, forms={}", projectId, drive, sheets, forms);
         return new GoogleDto.PollResult(drive, sheets, forms, drive + sheets + forms);

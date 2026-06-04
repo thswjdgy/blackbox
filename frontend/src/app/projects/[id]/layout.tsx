@@ -116,6 +116,7 @@ export default function ProjectLayout({ children }: { children: ReactNode }) {
     { name: '대시보드',      path: '/dashboard',                        icon: '🏠' },
     { name: '홈',            path: `/projects/${projectId}`,            icon: '📂' },
     { name: '태스크 보드',   path: `/projects/${projectId}/board`,      icon: '📋' },
+    { name: '캘린더',        path: `/projects/${projectId}/calendar`,   icon: '📅' },
     { name: '회의록',        path: `/projects/${projectId}/meetings`,   icon: '📝' },
     { name: '파일 검사',     path: `/projects/${projectId}/vault`,      icon: '🔒' },
     { name: '기여도 리포트', path: `/projects/${projectId}/report`,     icon: '📊', badge: alertCount },

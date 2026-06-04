@@ -40,6 +40,9 @@ public class GoogleDrivePushService {
     private final MeetingRepository            meetingRepository;
     private final FileVaultRepository          fileVaultRepository;
     private final RestTemplate                 restTemplate;
+    private final com.blackbox.domain.activity.service.ActivityLogService activityLogService;
+    private final com.blackbox.domain.user.repository.UserRepository userRepository;
+    private final com.blackbox.domain.score.service.DiscordNotificationService discordService;
 
     @Value("${file.upload-dir:/data/uploads}")
     private String uploadDir;
@@ -72,6 +75,35 @@ public class GoogleDrivePushService {
     // ──────────────────────────────────────────────────────────────────────
     // Vault 파일 → Google Drive
     // ──────────────────────────────────────────────────────────────────────
+    /** 수동 버튼 클릭 (userId 있음) */
+    public String pushVaultFile(Long projectId, Long fileId, Long userId) {
+        String url = pushVaultFile(projectId, fileId);
+
+        // activity_log 기록
+        try {
+            FileVault vault = fileVaultRepository.findById(fileId).orElse(null);
+            if (vault != null) {
+                com.blackbox.domain.user.entity.User user = userRepository.findById(userId).orElse(null);
+                if (user != null) {
+                    activityLogService.logVaultEvent(
+                            vault.getProject(), user,
+                            com.blackbox.domain.activity.entity.ActivityLog.EventType.GDRIVE_FILE_UPLOADED,
+                            Map.of("fileName", vault.getFileName(), "driveUrl", url)
+                    );
+                }
+                // Discord 알림
+                discordService.sendUpdate(projectId, vault.getProject().getName(),
+                        "☁️ Google Drive 업로드됨",
+                        String.format("**%s**\n[Drive에서 보기](%s)", vault.getFileName(), url),
+                        0x4285F4);
+            }
+        } catch (Exception e) {
+            log.warn("Drive push 기록 실패: {}", e.getMessage());
+        }
+        return url;
+    }
+
+    /** 자동 업로드 (userId 없음 — VaultService 내부 호출) */
     public String pushVaultFile(Long projectId, Long fileId) {
         GoogleInstallation inst = getInstallation(projectId);
         String token = oauthService.getValidAccessToken(inst);

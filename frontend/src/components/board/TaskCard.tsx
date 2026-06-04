@@ -8,7 +8,7 @@ export interface TaskType {
   title: string;
   description: string;
   status: 'TODO' | 'IN_PROGRESS' | 'DONE';
-  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
   assigneeIds: number[];
 }
 
@@ -34,10 +34,14 @@ export function TaskCard({ task, onClick, onDelete, memberMap = {} }: Props) {
     transition,
   };
 
-  const priorityColors = {
-    LOW: 'bg-slate-700 text-slate-300',
+  const priorityColors: Record<string, string> = {
+    LOW:    'bg-slate-700 text-slate-300',
     MEDIUM: 'bg-blue-900/50 text-blue-300 border-blue-500/30',
-    HIGH: 'bg-rose-900/50 text-rose-300 border-rose-500/30',
+    HIGH:   'bg-rose-900/50 text-rose-300 border-rose-500/30',
+    URGENT: 'bg-fuchsia-900/50 text-fuchsia-300 border-fuchsia-500/30',
+  };
+  const priorityLabel: Record<string, string> = {
+    LOW: '낮음', MEDIUM: '보통', HIGH: '높음', URGENT: '긴급',
   };
 
   return (
@@ -51,8 +55,8 @@ export function TaskCard({ task, onClick, onDelete, memberMap = {} }: Props) {
         ${isDragging ? 'opacity-50 scale-105 z-50 shadow-2xl shadow-violet-900/50 border-violet-500' : ''}`}
     >
       <div className="flex items-start justify-between mb-2">
-        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${priorityColors[task.priority]}`}>
-          {task.priority}
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${priorityColors[task.priority] ?? 'bg-slate-700 text-slate-300'}`}>
+          {priorityLabel[task.priority] ?? task.priority}
         </span>
         <div className="flex items-center gap-1">
           {task.assigneeIds.length > 0 && (

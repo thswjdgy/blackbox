@@ -75,6 +75,7 @@ public class ScoreEngine {
     private final ProjectWeightRepository weightRepository;
     private final ProjectAlertConfigRepository alertConfigRepository;
     private final TaskRepository taskRepository;
+    private final DiscordNotificationService discordNotificationService;
 
     /**
      * 특정 프로젝트의 점수를 재계산하고 저장한다.
@@ -244,7 +245,7 @@ public class ScoreEngine {
             double min = normalized.values().stream().mapToDouble(Double::doubleValue).min().orElse(0);
             if ((max - min) > cfg.getImbalancePct() && !alertExists(projectId, Alert.AlertType.IMBALANCE)) {
                 saveAlert(proj, Alert.AlertType.IMBALANCE, "WARNING",
-                        String.format("팀 내 기여도 편차가 %.1f%%p로 임계값(%.0f%%p)을 초과합니다.", max - min, cfg.getImbalancePct()));
+                        String.format("팀 내 기여도 편차가 %.1f%%p로 임계값(%.0f%%p)을 초과합니다.", max - min, cfg.getImbalancePct()), cfg);
             }
         }
 
@@ -255,7 +256,7 @@ public class ScoreEngine {
                 double ratio = total / totalSum;
                 if (ratio >= cfg.getOverloadRatio() && !alertExists(projectId, Alert.AlertType.OVERLOAD)) {
                     saveAlert(proj, Alert.AlertType.OVERLOAD, "CRITICAL",
-                            String.format("한 멤버가 팀 전체 활동의 %.0f%%를 담당하고 있습니다.", ratio * 100));
+                            String.format("한 멤버가 팀 전체 활동의 %.0f%%를 담당하고 있습니다.", ratio * 100), cfg);
                 }
             });
         }
@@ -268,7 +269,7 @@ public class ScoreEngine {
                     projectId, userId, inactivitySince);
             if (!active && !alertExists(projectId, Alert.AlertType.INACTIVITY)) {
                 saveAlert(proj, Alert.AlertType.INACTIVITY, "WARNING",
-                        String.format("멤버 '%s'가 %d일 이상 활동이 없습니다.", member.getUser().getName(), cfg.getInactivityDays()));
+                        String.format("멤버 '%s'가 %d일 이상 활동이 없습니다.", member.getUser().getName(), cfg.getInactivityDays()), cfg);
             }
         }
 
@@ -283,7 +284,7 @@ public class ScoreEngine {
             if (ratio >= cfg.getCrammingRatio() && !alertExists(projectId, Alert.AlertType.CRAMMING)) {
                 saveAlert(proj, Alert.AlertType.CRAMMING, "WARNING",
                         String.format("멤버 '%s'의 활동 중 %.0f%%가 최근 %d일에 집중되어 있습니다.",
-                                member.getUser().getName(), ratio * 100, cfg.getCrammingDays()));
+                                member.getUser().getName(), ratio * 100, cfg.getCrammingDays()), cfg);
             }
         }
 
@@ -295,7 +296,7 @@ public class ScoreEngine {
         if (!urgentTasks.isEmpty() && !alertExists(projectId, Alert.AlertType.DEADLINE)) {
             saveAlert(proj, Alert.AlertType.DEADLINE, "WARNING",
                     String.format("마감 %d일 이내인 미완료 태스크가 %d개 있습니다.",
-                            cfg.getDeadlineDays(), urgentTasks.size()));
+                            cfg.getDeadlineDays(), urgentTasks.size()), cfg);
         }
     }
 
@@ -337,6 +338,14 @@ public class ScoreEngine {
         alertRepository.save(Alert.builder()
                 .project(project).alertType(type).severity(severity).message(message).build());
         log.warn("Alert created: {} for project {}", type, project.getId());
+    }
+
+    private void saveAlert(com.blackbox.domain.project.entity.Project project,
+                           Alert.AlertType type, String severity, String message,
+                           ProjectAlertConfig cfg) {
+        saveAlert(project, type, severity, message);
+        discordNotificationService.sendAlert(
+                cfg.getDiscordWebhookUrl(), project.getName(), type, severity, message);
     }
 
     private ScoreDto.ProjectScoreReport buildReport(Long projectId,

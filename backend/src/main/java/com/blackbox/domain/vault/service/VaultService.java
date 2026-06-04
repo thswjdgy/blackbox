@@ -37,6 +37,8 @@ public class VaultService {
     private final HashService hashService;
     private final FileStorageService fileStorageService;
     private final ActivityLogService activityLogService;
+    private final com.blackbox.domain.google.service.GoogleDrivePushService drivePushService;
+    private final com.blackbox.domain.score.service.DiscordNotificationService discordService;
 
     @Transactional
     public VaultDto.Response upload(Long projectId, Long userId, MultipartFile file) {
@@ -80,6 +82,22 @@ public class VaultService {
                     project, user, EventType.FILE_UPLOADED,
                     Map.of("fileName", originalFileName, "hash", sha256Hash, "version", nextVersion)
             );
+
+            // 7. Google Drive 자동 업로드 (연동된 경우)
+            try {
+                String driveUrl = drivePushService.pushVaultFile(projectId, vault.getId(), userId);
+                log.info("Auto-pushed to Drive: {} → {}", originalFileName, driveUrl);
+            } catch (Exception e) {
+                log.debug("Drive auto-push skipped (not connected or error): {}", e.getMessage());
+            }
+
+            // 8. Discord 알림
+            discordService.sendUpdate(projectId, project.getName(),
+                    "📎 파일 업로드됨",
+                    String.format("**%s** (v%d)\n업로더: %s · %s",
+                            originalFileName, nextVersion, user.getName(),
+                            humanSize(file.getSize())),
+                    0x10B981);
 
             return toResponse(vault, duplicate);
 
@@ -160,6 +178,12 @@ public class VaultService {
         } catch (IOException e) {
             throw new BusinessException(ErrorCode.FILE_STORAGE_ERROR);
         }
+    }
+
+    private static String humanSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
+        return String.format("%.1f MB", bytes / (1024.0 * 1024));
     }
 
     private VaultDto.Response toResponse(FileVault vault, boolean duplicate) {
